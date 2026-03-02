@@ -9,42 +9,23 @@ jobs:
   build-edge:
     name: Build Edge MCP binary
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
-          - x86_64-apple-darwin
-          - aarch64-apple-darwin
-          - x86_64-pc-windows-msvc
+
     steps:
       - uses: actions/checkout@v6
       
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Build Release
+        uses: zijiren233/cargo-cross@v1
         with:
-          cache: true
-          cache-shared-key: edge-${{ matrix.target }}
-          cache-workspace-crates: true
-          rustflags: ""
-      
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-      
-      - name: Build binary
-        run: cross build --release --bin edge --package edge-trade --target ${{ matrix.target }}
-      
-      - name: Prepare artifacts (Unix)
-        if: matrix.target != 'x86_64-pc-windows-msvc'
-        run: |
-          mv target/${{ matrix.target }}/release/edge edge-${{ matrix.target }}
-          sha256sum edge-${{ matrix.target }} > edge-${{ matrix.target }}.sha256
-      
-      - name: Prepare artifacts (Windows)
-        if: matrix.target == 'x86_64-pc-windows-msvc'
-        run: |
-          mv target/${{ matrix.target }}/release/edge.exe edge-${{ matrix.target }}.exe
-          sha256sum edge-${{ matrix.target }}.exe > edge-${{ matrix.target }}.exe.sha256
+          command: build
+          targets: |
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
+            x86_64-pc-windows-gnu
+            aarch64-apple-darwin
+            x86_64-apple-darwin
+            x86_64h-apple-darwin
+            arm64e-apple-darwin
+          profile: release
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -128,7 +109,7 @@ jobs:
       
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.node-version'
+          node-version: 24
           cache: yarn
           cache-dependency-path: yarn.lock
       
