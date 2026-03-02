@@ -33,7 +33,7 @@ jobs:
           path: target/${{ matrix.target }}/release/*
 
   publish-edge:
-    name: Publish to GitHub Releases
+    name: Publish to GitHub
     needs: build-edge
     runs-on: ubuntu-latest
     steps:
@@ -43,19 +43,30 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
       
       - name: Prepare release binaries
         run: |
-          mkdir -p release
-          cp artifacts/edge-binaries/* release/
-          ls -lah release/
-      
+          rsync --archive --verbose --mkpath \
+            --include='*/' \
+            --include='edge-trade*' \
+            --exclude='*' \
+            artifacts/ release/
+
+      - name: Find Tag
+        id: tagger
+        uses: jimschubert/query-tag-action@v1
+        with:
+          include: 'v*'
+          exclude: '*-rc*'
+          commit-ish: 'HEAD~'
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "Edge Trade ${{ github.ref_name }}" \
+          gh release create "${{steps.tagger.outputs.tag}}" \
+            --title "Edge MCP Client ${{steps.tagger.outputs.tag}}" \
             --generate-notes \
             release/*
       
@@ -68,7 +79,7 @@ jobs:
         run: cargo publish -p edge-trade
 
   publish-npm:
-    name: Publish to npm
+    name: Publish to NPM
     needs: publish-edge
     runs-on: ubuntu-latest
     steps:
@@ -79,22 +90,18 @@ jobs:
       
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.node-version'
-          cache: yarn
-          cache-dependency-path: yarn.lock
           registry-url: 'https://registry.npmjs.org'
-      
-      - name: Pull Node Cache
-        uses: actions/cache@v5
+
+      - name: Find Tag
+        id: tagger
+        uses: jimschubert/query-tag-action@v1
         with:
-          path: node_modules
-          key: node-cache-${{ runner.os }}-x64-modules-${{ hashFiles('yarn.lock') }}
-      
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-      
+          include: 'v*'
+          exclude: '*-rc*'
+          commit-ish: 'HEAD~'
+
       - name: Publish to npm
-        run: yarn workspace @edgedottrade/mcp npm publish --access public
+        run: npm publish --access public --tag ${{ steps.tagger.outputs.tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
