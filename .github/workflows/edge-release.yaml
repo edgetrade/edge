@@ -31,11 +31,19 @@ jobs:
           command: build
           targets: ${{ matrix.target }}
       
+      - name: Prepare binary for upload
+        run: |
+          if [ -f target/${{ matrix.target }}/release/edge ]; then
+            rsync --archive --mkpath target/${{ matrix.target }}/release/edge dist/edge-${{ matrix.target }}
+          elif [ -f target/${{ matrix.target }}/release/edge.exe ]; then
+            rsync --archive --mkpath target/${{ matrix.target }}/release/edge.exe dist/edge-${{ matrix.target }}.exe
+          fi
+      
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/*
+          path: dist/*
 
   publish-edge:
     name: Publish to GitHub
@@ -53,8 +61,7 @@ jobs:
       - name: Prepare release binaries
         run: |
           rsync --archive --verbose --mkpath \
-            --include='edge' \
-            --include='edge.exe' \
+            --include='edge-*' \
             --exclude='*' \
             artifacts/ release/
 
@@ -74,14 +81,6 @@ jobs:
             --title "Edge MCP Client ${{steps.tagger.outputs.tag}}" \
             --generate-notes \
             release/*
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p edge-trade
 
   publish-npm:
     name: Publish to NPM
