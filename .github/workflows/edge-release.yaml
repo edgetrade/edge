@@ -2,8 +2,8 @@ name: Release Edge MCP tooling
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 jobs:
   build-edge:
