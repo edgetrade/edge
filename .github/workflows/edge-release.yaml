@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build-rust-client:
+  build-edge:
     name: Build Edge MCP binary
     runs-on: ubuntu-latest
     strategy:
@@ -52,8 +52,8 @@ jobs:
           name: edge-${{ matrix.target }}
           path: edge-${{ matrix.target }}*
 
-  publish-rust-client:
-    name: Publish Edge MCP binary
+  publish-edge:
+    name: Publish to GitHub Releases
     needs: build-edge
     runs-on: ubuntu-latest
     steps:
@@ -87,7 +87,7 @@ jobs:
         run: cargo publish -p edge-trade
 
   publish-npm:
-    name: Publish @edgedottrade/mcp to npm
+    name: Publish to npm
     needs: publish-edge
     runs-on: ubuntu-latest
     steps:
@@ -146,8 +146,8 @@ jobs:
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
 
-  publish-claude-marketplace:
-    name: Update Claude marketplace
+  publish-claude:
+    name: Publish to Claude
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
