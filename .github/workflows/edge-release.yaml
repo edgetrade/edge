@@ -114,12 +114,12 @@ jobs:
         with:
           include: 'v*'
           exclude: '*-rc*'
-          commit-ish: 'HEAD~'    
+          commit-ish: 'HEAD~'
   
       - name: Publish to ClawHub
         run: |
           npx clawhub@latest login --token ${{ secrets.CLAWHUB_TOKEN }} --no-browser
-          npx clawhub@latest publish plugins/openclaw --slug=edge --name=Edge.Trade --version=${{steps.tagger.outputs.tag}}
+          npx clawhub@latest publish plugins/openclaw --slug=edge --name=Edge.Trade --version=$(echo "${{steps.tagger.outputs.tag}}" | sed 's/^v//')
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
 
