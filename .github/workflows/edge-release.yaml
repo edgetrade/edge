@@ -111,7 +111,7 @@ jobs:
           node-version: 24
       
       - name: Publish to ClawHub
-        run: npx clawhub@latest publish plugins/openclaw --org edgedottrade
+        run: npx clawhub@latest publish plugins/openclaw --name edge --version ${{ github.ref_name }}
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
 
