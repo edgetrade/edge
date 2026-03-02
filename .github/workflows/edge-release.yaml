@@ -18,17 +18,40 @@ jobs:
           command: build
           targets: |
             x86_64-unknown-linux-musl
-            aarch64-unknown-linux-musl
-            x86_64-pc-windows-gnu
-            aarch64-apple-darwin
-            x86_64-apple-darwin
           profile: release
+            # aarch64-unknown-linux-musl
+            # x86_64-pc-windows-gnu
+            # aarch64-apple-darwin
+            # x86_64-apple-darwin
+      
+      - name: Debug - List build outputs
+        run: |
+          echo "=== Listing target directory structure ==="
+          ls -R target/ || true
+          echo "=== Finding edge-trade binaries ==="
+          find . -name "edge-trade*" -type f || true
+      
+      - name: Collect binaries
+        run: |
+          mkdir -p release-binaries
+          find target -name "edge-trade" -o -name "edge-trade.exe" | while read binary; do
+            target=$(echo "$binary" | cut -d'/' -f2)
+            if [ -f "$binary" ]; then
+              if [[ "$binary" == *.exe ]]; then
+                cp "$binary" "release-binaries/edge-trade-${target}.exe"
+              else
+                cp "$binary" "release-binaries/edge-trade-${target}"
+              fi
+              echo "Copied $binary to release-binaries/edge-trade-${target}"
+            fi
+          done
+          ls -lah release-binaries/
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: edge-binaries
-          path: target/*/release/edge-trade*
+          path: target/*/release/*
 
   publish-edge:
     name: Publish to GitHub Releases
@@ -45,16 +68,8 @@ jobs:
       - name: Prepare release binaries
         run: |
           mkdir -p release
-          cd artifacts/edge-binaries/target
-          for target_dir in */; do
-            target="${target_dir%/}"
-            if [ -f "$target_dir/release/edge-trade" ]; then
-              cp "$target_dir/release/edge-trade" "../../../release/edge-trade-$target"
-            fi
-            if [ -f "$target_dir/release/edge-trade.exe" ]; then
-              cp "$target_dir/release/edge-trade.exe" "../../../release/edge-trade-$target.exe"
-            fi
-          done
+          cp artifacts/edge-binaries/* release/
+          ls -lah release/
       
       - name: Create GitHub Release
         env:
