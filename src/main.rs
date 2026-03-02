@@ -15,7 +15,7 @@ struct Cli {
     #[arg(long)]
     api_key: Option<String>,
 
-    #[arg(long, default_value = "wss://api.iris.trade.edge")]
+    #[arg(long, default_value = "wss://mcp.edge.trade")]
     iris_url: String,
 
     #[arg(long, default_value = "stdio")]
