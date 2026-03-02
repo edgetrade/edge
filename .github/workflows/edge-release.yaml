@@ -108,11 +108,19 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      
+
+      - name: Find Tag
+        id: tagger
+        uses: jimschubert/query-tag-action@v1
+        with:
+          include: 'v*'
+          exclude: '*-rc*'
+          commit-ish: 'HEAD~'    
+  
       - name: Publish to ClawHub
         run: |
           npx clawhub@latest login --token ${{ secrets.CLAWHUB_TOKEN }} --no-browser
-          npx clawhub@latest publish plugins/openclaw --slug edge --name Edge.Trade --version $(git describe --abbrev=0 --tags)
+          npx clawhub@latest publish plugins/openclaw --slug=edge --name=Edge.Trade --version=${{steps.tagger.outputs.tag}}
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
 
