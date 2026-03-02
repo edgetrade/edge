@@ -65,20 +65,13 @@ jobs:
             --exclude='*' \
             artifacts/ release/
 
-      - name: Find Tag
-        id: tagger
-        uses: jimschubert/query-tag-action@v1
-        with:
-          include: 'v*'
-          exclude: '*-rc*'
-          commit-ish: 'HEAD~'
-
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{steps.tagger.outputs.tag}}" \
-            --title "Edge MCP Client ${{steps.tagger.outputs.tag}}" \
+          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          gh release create "$VERSION" \
+            --title "Edge MCP Client $VERSION" \
             --generate-notes \
             release/*
 
@@ -96,16 +89,11 @@ jobs:
         with:
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Find Tag
-        id: tagger
-        uses: jimschubert/query-tag-action@v1
-        with:
-          include: 'v*'
-          exclude: '*-rc*'
-          commit-ish: 'HEAD~'
-
       - name: Publish to npm
-        run: npm publish --access public --tag ${{ steps.tagger.outputs.tag }}
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          npm version "$VERSION" --no-git-tag-version
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -121,19 +109,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-
-      - name: Find Tag
-        id: tagger
-        uses: jimschubert/query-tag-action@v1
-        with:
-          include: 'v*'
-          exclude: '*-rc*'
-          commit-ish: 'HEAD~'
   
       - name: Publish to ClawHub
         run: |
+          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
           npx clawhub@latest login --token ${{ secrets.CLAWHUB_TOKEN }} --no-browser
-          npx clawhub@latest publish plugins/openclaw --slug=edge --name=Edge.Trade --version=$(echo "${{steps.tagger.outputs.tag}}" | sed 's/^v//')
+          npx clawhub@latest publish plugins/openclaw --slug=edge --name=Edge.Trade --version=$VERSION
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
 
