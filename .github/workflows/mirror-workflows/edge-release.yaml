@@ -1,0 +1,175 @@
+name: Release Edge MCP tooling
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-rust-client:
+    name: Build Edge MCP binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+          - x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+          cache-shared-key: edge-${{ matrix.target }}
+          cache-workspace-crates: true
+          rustflags: ""
+      
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+      
+      - name: Build binary
+        run: cross build --release --bin edge --package edge-trade --target ${{ matrix.target }}
+      
+      - name: Prepare artifacts (Unix)
+        if: matrix.target != 'x86_64-pc-windows-msvc'
+        run: |
+          mv target/${{ matrix.target }}/release/edge edge-${{ matrix.target }}
+          sha256sum edge-${{ matrix.target }} > edge-${{ matrix.target }}.sha256
+      
+      - name: Prepare artifacts (Windows)
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: |
+          mv target/${{ matrix.target }}/release/edge.exe edge-${{ matrix.target }}.exe
+          sha256sum edge-${{ matrix.target }}.exe > edge-${{ matrix.target }}.exe.sha256
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-${{ matrix.target }}
+          path: edge-${{ matrix.target }}*
+
+  publish-rust-client:
+    name: Publish Edge MCP binary
+    needs: build-edge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec mv {} release/ \;
+      
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "Edge Trade ${{ github.ref_name }}" \
+            --generate-notes \
+            release/*
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p edge-trade
+
+  publish-npm:
+    name: Publish @edgedottrade/mcp to npm
+    needs: publish-edge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Make Node Happy
+        run: corepack enable
+      
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+          cache: yarn
+          cache-dependency-path: yarn.lock
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Pull Node Cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-cache-${{ runner.os }}-x64-modules-${{ hashFiles('yarn.lock') }}
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Publish to npm
+        run: yarn workspace @edgedottrade/mcp npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-openclaw:
+    name: Publish to ClawHub
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Make Node Happy
+        run: corepack enable
+      
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+          cache: yarn
+          cache-dependency-path: yarn.lock
+      
+      - name: Pull Node Cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-cache-${{ runner.os }}-x64-modules-${{ hashFiles('yarn.lock') }}
+      
+      - name: Validate OpenClaw skill
+        run: npx clawhub@latest validate plugins/openclaw
+      
+      - name: Publish to ClawHub
+        run: npx clawhub@latest publish plugins/openclaw --org edgedottrade
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+
+  publish-claude-marketplace:
+    name: Update Claude marketplace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Create marketplace.json
+        run: |
+          cat > marketplace.json << 'EOF'
+          {
+            "plugins": [
+              {
+                "name": "edge",
+                "source": "./plugins/claude",
+                "version": "${{ github.ref_name }}"
+              }
+            ]
+          }
+          EOF
+      
+      - name: Commit marketplace.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add marketplace.json
+          git commit -m "chore: update marketplace for ${{ github.ref_name }}" || echo "No marketplace changes"
+          git push origin main || true
