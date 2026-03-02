@@ -115,9 +115,9 @@ jobs:
           exclude: '*-rc*'
           commit-ish: 'HEAD~'
 
-      # See https://github.com/actions/setup-node/issues/1440
       - name: Publish to npm
         run: | 
+          # See https://github.com/actions/setup-node/issues/1440
           unset NODE_AUTH_TOKEN
           npm version "$(echo "${{steps.tagger.outputs.tag}}" | sed 's/^v//')" --no-git-tag-version
           npm publish --access=public
