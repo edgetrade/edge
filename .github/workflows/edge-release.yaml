@@ -112,8 +112,8 @@ jobs:
       
       - name: Publish to ClawHub
         run: |
-          npx clawhub@latest login
-          npx clawhub@latest publish plugins/openclaw --name edge --version ${{ github.ref_name }}
+          npx clawhub@latest login --token ${{ secrets.CLAWHUB_TOKEN }} --no-browser
+          npx clawhub@latest publish plugins/openclaw --slug edge --name Edge.Trade --version ${{ github.ref_name }}
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
 
