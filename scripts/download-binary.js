@@ -11,19 +11,20 @@ const binariesDir = join(__dirname, '..', 'binaries');
 function getBinaryInfo() {
   const platform = process.platform;
   const arch = process.arch;
+  const version = process.env.npm_package_version || '0.1.0';
 
   let target;
   let filename;
 
   if (platform === 'win32') {
     target = 'x86_64-pc-windows-gnu';
-    filename = `edge-${target}.exe`;
+    filename = `edge-v${version}-${target}.exe`;
   } else if (platform === 'darwin') {
     target = arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
-    filename = `edge-${target}`;
+    filename = `edge-v${version}-${target}`;
   } else if (platform === 'linux') {
     target = arch === 'arm64' ? 'aarch64-unknown-linux-musl' : 'x86_64-unknown-linux-musl';
-    filename = `edge-${target}`;
+    filename = `edge-v${version}-${target}`;
   } else {
     console.error(`Unsupported platform: ${platform}-${arch}`);
     process.exit(1);
