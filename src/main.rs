@@ -11,6 +11,7 @@ use server::EdgeServer;
 #[derive(Parser)]
 #[command(name = "edge")]
 #[command(about = "Edge Trade MCP client", long_about = None)]
+#[command(disable_help_subcommand = true)]
 struct Cli {
     #[arg(long)]
     api_key: Option<String>,
@@ -35,6 +36,9 @@ struct Cli {
 
     #[arg(long)]
     list_tools: bool,
+
+    #[arg(long)]
+    verbose: bool,
 }
 
 #[derive(Subcommand)]
@@ -79,7 +83,7 @@ async fn main() {
             process::exit(1);
         });
 
-    let server = EdgeServer::new(&cli.iris_url, &api_key)
+    let server = EdgeServer::new(&cli.iris_url, &api_key, cli.verbose)
         .await
         .unwrap_or_else(|e| {
             eprintln!("Failed to connect to Iris: {}", e);

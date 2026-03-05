@@ -106,10 +106,11 @@ struct IrisClientInner {
     pending_requests: Arc<Mutex<HashMap<u32, RequestSender>>>,
     active_subscriptions: Arc<Mutex<HashMap<u32, SubscriptionSender>>>,
     next_id: Arc<Mutex<u32>>,
+    verbose: bool,
 }
 
 impl IrisClient {
-    pub async fn connect(url: &str, api_key: &str) -> Result<Self, IrisClientError> {
+    pub async fn connect(url: &str, api_key: &str, verbose: bool) -> Result<Self, IrisClientError> {
         let connection_params = serde_json::json!({
             "apiKey": api_key
         });
@@ -117,14 +118,34 @@ impl IrisClient {
 
         let ws_url = format!("{}?connectionParams={}", url, encoded_params);
 
+        if verbose {
+            eprintln!("[edge] connecting to {}", url);
+            eprintln!(
+                "[edge] api key: {}...{}",
+                &api_key[..4.min(api_key.len())],
+                &api_key[api_key.len().saturating_sub(4)..]
+            );
+        }
+
         let (ws_stream, response) = tokio_tungstenite::connect_async(&ws_url)
             .await
             .map_err(|e| IrisClientError::WebSocket(format!("WebSocket connection failed: {}", e)))?;
+
+        if verbose {
+            eprintln!("[edge] handshake status: {}", response.status());
+            for (k, v) in response.headers() {
+                eprintln!("[edge]   {}: {}", k, v.to_str().unwrap_or("?"));
+            }
+        }
 
         if response.status() == 401 {
             return Err(IrisClientError::Auth("Invalid API key".to_string()));
         } else if !response.status().is_success() {
             return Err(IrisClientError::Connection(format!("HTTP {}", response.status())));
+        }
+
+        if verbose {
+            eprintln!("[edge] connected");
         }
 
         let (mut write, mut read) = ws_stream.split();
@@ -205,6 +226,7 @@ impl IrisClient {
                 pending_requests,
                 active_subscriptions,
                 next_id,
+                verbose,
             }),
         })
     }
@@ -222,6 +244,10 @@ impl IrisClient {
         let id = *next_id;
         *next_id += 1;
         drop(next_id);
+
+        if self.inner.verbose {
+            eprintln!("[edge] → {} {} (id={}): {}", method, path, id, input);
+        }
 
         let (tx, rx) = oneshot::channel();
         self.inner.pending_requests.lock().await.insert(id, tx);
@@ -241,7 +267,16 @@ impl IrisClient {
             .send(msg)
             .map_err(|_| IrisClientError::WebSocket("Connection closed".to_string()))?;
 
-        rx.await.map_err(|_| IrisClientError::Timeout)?
+        let result = rx.await.map_err(|_| IrisClientError::Timeout)?;
+
+        if self.inner.verbose {
+            match &result {
+                Ok(v) => eprintln!("[edge] ← {} {} (id={}): {}", method, path, id, v),
+                Err(e) => eprintln!("[edge] ✗ {} {} (id={}): {}", method, path, id, e),
+            }
+        }
+
+        result
     }
 
     pub async fn subscribe(
@@ -253,6 +288,10 @@ impl IrisClient {
         let id = *next_id;
         *next_id += 1;
         drop(next_id);
+
+        if self.inner.verbose {
+            eprintln!("[edge] → subscribe {} (id={}): {}", path, id, input);
+        }
 
         let (tx, rx) = mpsc::unbounded_channel();
         self.inner.active_subscriptions.lock().await.insert(id, tx);
@@ -272,10 +311,18 @@ impl IrisClient {
             .send(msg)
             .map_err(|_| IrisClientError::WebSocket("Connection closed".to_string()))?;
 
+        if self.inner.verbose {
+            eprintln!("[edge] ← subscribe {} (id={}) registered", path, id);
+        }
+
         Ok((id, rx))
     }
 
     pub async fn unsubscribe(&self, id: u32) -> Result<(), IrisClientError> {
+        if self.inner.verbose {
+            eprintln!("[edge] → subscription.stop (id={})", id);
+        }
+
         self.inner.active_subscriptions.lock().await.remove(&id);
 
         let request = serde_json::json!({
@@ -316,14 +363,10 @@ mod base64 {
 
             if chunk.len() > 1 {
                 write!(&mut result, "{}", encode_char(b3)).unwrap();
-            } else {
-                result.push('=');
             }
 
             if chunk.len() > 2 {
                 write!(&mut result, "{}", encode_char(b4)).unwrap();
-            } else {
-                result.push('=');
             }
         }
 
@@ -335,9 +378,9 @@ mod base64 {
             0..=25 => (b'A' + b) as char,
             26..=51 => (b'a' + (b - 26)) as char,
             52..=61 => (b'0' + (b - 52)) as char,
-            62 => '+',
-            63 => '/',
-            _ => '=',
+            62 => '-',
+            63 => '_',
+            _ => unreachable!(),
         }
     }
 }

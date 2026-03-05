@@ -38,8 +38,8 @@ pub struct EdgeServer {
 impl ServerHandler for EdgeServer {}
 
 impl EdgeServer {
-    pub async fn new(url: &str, api_key: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = IrisClient::connect(url, api_key).await?;
+    pub async fn new(url: &str, api_key: &str, verbose: bool) -> Result<Self, Box<dyn std::error::Error>> {
+        let client = IrisClient::connect(url, api_key, verbose).await?;
         Ok(Self {
             client,
             subscription_manager: SubscriptionManager::new(),
