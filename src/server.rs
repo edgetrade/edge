@@ -12,7 +12,7 @@ use rmcp::{
     transport::io::stdio,
 };
 use serde_json::Value;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::client::IrisClient;
 use crate::manifest::McpManifest;
@@ -24,7 +24,7 @@ type ActiveSubscriptions = Arc<Mutex<std::collections::HashMap<String, u32>>>;
 #[derive(Clone)]
 pub struct EdgeServer {
     client: IrisClient,
-    manifest: Arc<McpManifest>,
+    manifest: Arc<RwLock<McpManifest>>,
     subscription_manager: SubscriptionManager,
     webhook_dispatcher: WebhookDispatcher,
     active_subscriptions: ActiveSubscriptions,
@@ -43,13 +43,13 @@ impl ServerHandler for EdgeServer {
         info
     }
 
-    fn list_tools(
+    async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ListToolsResult, McpError>> + Send + '_ {
-        let tools = self
-            .manifest
+    ) -> Result<ListToolsResult, McpError> {
+        let manifest = self.manifest.read().await;
+        let tools = manifest
             .tools
             .iter()
             .map(|def| {
@@ -60,7 +60,7 @@ impl ServerHandler for EdgeServer {
                 Tool::new(def.name.clone(), def.description.clone(), Arc::new(schema))
             })
             .collect::<Vec<_>>();
-        std::future::ready(Ok(ListToolsResult::with_all_items(tools)))
+        Ok(ListToolsResult::with_all_items(tools))
     }
 
     fn call_tool(
@@ -70,13 +70,20 @@ impl ServerHandler for EdgeServer {
     ) -> impl Future<Output = Result<CallToolResult, McpError>> + Send + '_ {
         let name = request.name.to_string();
         let args = request.arguments.map(Value::Object).unwrap_or_default();
-        let tool = self.manifest.tools.iter().find(|t| t.name == name).cloned();
         let client = self.client.clone();
         let sub_manager = self.subscription_manager.clone();
         let webhook_dispatcher = self.webhook_dispatcher.clone();
         let active_subscriptions = self.active_subscriptions.clone();
+        let manifest = self.manifest.clone();
 
         async move {
+            let tool = manifest
+                .read()
+                .await
+                .tools
+                .iter()
+                .find(|t| t.name == name)
+                .cloned();
             let tool = match tool {
                 Some(t) => t,
                 None => {
@@ -105,13 +112,13 @@ impl ServerHandler for EdgeServer {
         }
     }
 
-    fn list_resources(
+    async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ListResourcesResult, McpError>> + Send + '_ {
-        let resources = self
-            .manifest
+    ) -> Result<ListResourcesResult, McpError> {
+        let manifest = self.manifest.read().await;
+        let resources = manifest
             .resources
             .iter()
             .map(|def| Resource {
@@ -128,7 +135,7 @@ impl ServerHandler for EdgeServer {
                 annotations: None,
             })
             .collect::<Vec<_>>();
-        std::future::ready(Ok(ListResourcesResult::with_all_items(resources)))
+        Ok(ListResourcesResult::with_all_items(resources))
     }
 
     fn read_resource(
@@ -137,13 +144,15 @@ impl ServerHandler for EdgeServer {
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ReadResourceResult, McpError>> + Send + '_ {
         let uri = request.uri;
-        let resource = self
-            .manifest
-            .resources
-            .iter()
-            .find(|r| r.uri == uri)
-            .cloned();
+        let manifest = self.manifest.clone();
         async move {
+            let resource = manifest
+                .read()
+                .await
+                .resources
+                .iter()
+                .find(|r| r.uri == uri)
+                .cloned();
             match resource {
                 Some(def) => {
                     let text = serde_json::to_string_pretty(&def.content).unwrap_or_default();
@@ -159,13 +168,13 @@ impl ServerHandler for EdgeServer {
         }
     }
 
-    fn list_prompts(
+    async fn list_prompts(
         &self,
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ListPromptsResult, McpError>> + Send + '_ {
-        let prompts = self
-            .manifest
+    ) -> Result<ListPromptsResult, McpError> {
+        let manifest = self.manifest.read().await;
+        let prompts = manifest
             .prompts
             .iter()
             .map(|def| {
@@ -181,7 +190,7 @@ impl ServerHandler for EdgeServer {
                 Prompt::new(def.name.clone(), Some(def.description.clone()), Some(args))
             })
             .collect::<Vec<_>>();
-        std::future::ready(Ok(ListPromptsResult::with_all_items(prompts)))
+        Ok(ListPromptsResult::with_all_items(prompts))
     }
 
     fn get_prompt(
@@ -190,13 +199,15 @@ impl ServerHandler for EdgeServer {
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<GetPromptResult, McpError>> + Send + '_ {
         let name = request.name;
-        let prompt = self
-            .manifest
-            .prompts
-            .iter()
-            .find(|p| p.name == name)
-            .cloned();
+        let manifest = self.manifest.clone();
         async move {
+            let prompt = manifest
+                .read()
+                .await
+                .prompts
+                .iter()
+                .find(|p| p.name == name)
+                .cloned();
             match prompt {
                 Some(def) => {
                     let messages: Vec<PromptMessage> = def
@@ -228,13 +239,13 @@ impl EdgeServer {
     pub async fn new(
         url: &str,
         api_key: &str,
-        manifest: McpManifest,
+        manifest: Arc<RwLock<McpManifest>>,
         verbose: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let client = IrisClient::connect(url, api_key, verbose).await?;
         Ok(Self {
             client,
-            manifest: Arc::new(manifest),
+            manifest,
             subscription_manager: SubscriptionManager::new(),
             webhook_dispatcher: WebhookDispatcher::new(),
             active_subscriptions: Arc::new(Mutex::new(std::collections::HashMap::new())),
@@ -256,7 +267,6 @@ impl EdgeServer {
 
         let config = StreamableHttpServerConfig {
             stateful_mode: false,
-            json_response: true,
             ..Default::default()
         };
         let session_manager = Arc::new(LocalSessionManager::default());

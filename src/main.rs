@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 use std::process;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 mod client;
 mod manifest;
@@ -208,7 +210,9 @@ async fn main() {
         return;
     }
 
-    let server = EdgeServer::new(&iris_url, &api_key, manifest.clone(), cli.verbose)
+    let shared_manifest = Arc::new(RwLock::new(manifest));
+
+    let server = EdgeServer::new(&iris_url, &api_key, shared_manifest.clone(), cli.verbose)
         .await
         .unwrap_or_else(|e| {
             eprintln!("Failed to connect to Iris: {}", e);
@@ -218,7 +222,11 @@ async fn main() {
     {
         let manifest_url = manifest_url.clone();
         let api_key = api_key.clone();
-        let initial_body = serde_json::to_vec(&manifest).unwrap_or_default();
+        let manifest_ref = shared_manifest.clone();
+        let initial_body = {
+            let guard = manifest_ref.read().await;
+            serde_json::to_vec(&*guard).unwrap_or_default()
+        };
         let mut current_hash = sha256(&initial_body);
         tokio::spawn(async move {
             loop {
@@ -227,8 +235,14 @@ async fn main() {
                     Ok(body) => {
                         let new_hash = sha256(&body);
                         if new_hash != current_hash {
-                            eprintln!("[edge] manifest updated — restart recommended to pick up changes");
-                            current_hash = new_hash;
+                            match serde_json::from_slice::<McpManifest>(&body) {
+                                Ok(new_manifest) => {
+                                    *manifest_ref.write().await = new_manifest;
+                                    current_hash = new_hash;
+                                    eprintln!("[edge] manifest reloaded");
+                                }
+                                Err(e) => eprintln!("[edge] manifest parse error after update: {e}"),
+                            }
                         }
                     }
                     Err(e) => {
