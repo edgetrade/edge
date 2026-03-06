@@ -1,5 +1,7 @@
 use crate::client::IrisClient;
 use crate::subscriptions::{SubscriptionManager, WebhookDispatcher};
+use crate::types::urls::DOCS_BASE_URL;
+use crate::docs_url;
 use rmcp::{Server, ToolError, tool, tool_handler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -31,7 +33,7 @@ pub fn register(server: &Server, client: IrisClient) -> Result<(), Box<dyn std::
     server.add_tool(
         tool!(
             name = "alerts",
-            description = "Subscribe to real-time alerts (price, order_fill, graduation, memescope, pair_metrics, wallet_swaps, native_price, portfolio_updates). Actions: subscribe, poll, unsubscribe. See: https://docs.edge.trade/agents/tools/alerts",
+            description = concat!("Subscribe to real-time alerts (price, order_fill, graduation, memescope, pair_metrics, wallet_swaps, native_price, portfolio_updates). Actions: subscribe, poll, unsubscribe. See: ", docs_url!(), "/tools/alerts"),
             input_schema = {
                 "type": "object",
                 "properties": {
@@ -112,8 +114,8 @@ async fn handle_alerts(state: Arc<AlertsState>, input: Value) -> Result<Value, T
         "poll" => handle_poll(state, params.extra).await,
         "unsubscribe" => handle_unsubscribe(state, params.extra).await,
         _ => Err(ToolError::InvalidInput(format!(
-            "Unknown action: {}. See: https://docs.edge.trade/agents/tools/alerts",
-            params.action
+            "Unknown action: {}. See: {}/tools/alerts",
+            params.action, DOCS_BASE_URL
         ))),
     }
 }

@@ -1,4 +1,6 @@
 use crate::client::IrisClient;
+use crate::docs_url;
+use crate::types::urls::DOCS_BASE_URL;
 use rmcp::{Server, ToolError, tool, tool_handler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,7 +17,7 @@ pub fn register(server: &Server, client: IrisClient) -> Result<(), Box<dyn std::
     server.add_tool(
         tool!(
             name = "portfolio",
-            description = "View wallet holdings, history, transactions, and analytics (holdings, summary, history, balances, scan, swaps, tx). See: https://docs.edge.trade/agents/tools/portfolio",
+            description = concat!("View wallet holdings, history, transactions, and analytics (holdings, summary, history, balances, scan, swaps, tx). See: ", docs_url!(), "/tools/portfolio"),
             input_schema = {
                 "type": "object",
                 "properties": {
@@ -205,8 +207,8 @@ async fn handle_portfolio(client: IrisClient, input: Value) -> Result<Value, Too
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         }
         _ => Err(ToolError::InvalidInput(format!(
-            "Unknown view: {}. See: https://docs.edge.trade/agents/tools/portfolio",
-            params.view
+            "Unknown view: {}. See: {}/tools/portfolio",
+            params.view, DOCS_BASE_URL
         ))),
     }
 }

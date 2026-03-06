@@ -1,4 +1,5 @@
 use crate::client::IrisClient;
+use crate::docs_url;
 use rmcp::{Server, ToolError, tool, tool_handler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -13,7 +14,7 @@ pub fn register(server: &Server, client: IrisClient) -> Result<(), Box<dyn std::
     server.add_tool(
         tool!(
             name = "search",
-            description = "Search tokens by name or address. See: https://docs.edge.trade/agents/tools/search",
+            description = concat!("Search tokens by name or address. See: ", docs_url!(), "/tools/search"),
             input_schema = {
                 "type": "object",
                 "properties": {

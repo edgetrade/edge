@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use rmcp::{
     ServerHandler, ServiceExt,
-    handler::server::tool::{Parameters, ToolRouter},
-    handler::server::wrapper::Json,
+    handler::server::tool::ToolRouter,
+    handler::server::wrapper::{Json, Parameters},
     tool, tool_handler, tool_router,
     transport::io::stdio,
 };
@@ -56,33 +56,8 @@ impl EdgeServer {
     }
 
     pub async fn serve_sse(self, host: &str, port: u16) -> Result<(), Box<dyn std::error::Error>> {
-        use rmcp::transport::sse_server::{SseServer, SseServerConfig};
-        use std::net::SocketAddr;
-        use tokio_util::sync::CancellationToken;
-
-        let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
-        eprintln!("Starting SSE server on http://{}/sse", addr);
-
-        let config = SseServerConfig {
-            bind: addr,
-            sse_path: "/sse".to_string(),
-            post_path: "/message".to_string(),
-            ct: CancellationToken::new(),
-            sse_keep_alive: None,
-        };
-
-        let mut sse_server = SseServer::serve_with_config(config).await?;
-
-        while let Some(transport) = sse_server.next_transport().await {
-            let service = self.clone();
-            tokio::spawn(async move {
-                if let Err(e) = service.serve(transport).await {
-                    eprintln!("SSE transport error: {}", e);
-                }
-            });
-        }
-
-        Ok(())
+        eprintln!("SSE transport removed in rmcp 1.1 — using streamable HTTP instead");
+        self.serve_http(host, port).await
     }
 
     pub async fn serve_http(self, host: &str, port: u16) -> Result<(), Box<dyn std::error::Error>> {
@@ -217,8 +192,9 @@ impl EdgeServer {
             _ => {
                 return Json(InspectResponse::Error {
                     error: format!(
-                        "Unknown view: {}. See: https://docs.edge.trade/agents/tools/inspect",
-                        params.view
+                        "Unknown view: {}. See: {}/tools/inspect",
+                        params.view,
+                        crate::types::urls::DOCS_BASE_URL
                     ),
                 });
             }
@@ -328,8 +304,9 @@ impl EdgeServer {
             _ => {
                 return Json(PortfolioResponse::Error {
                     error: format!(
-                        "Unknown view: {}. See: https://docs.edge.trade/agents/tools/portfolio",
-                        params.view
+                        "Unknown view: {}. See: {}/tools/portfolio",
+                        params.view,
+                        crate::types::urls::DOCS_BASE_URL
                     ),
                 });
             }
@@ -363,7 +340,10 @@ impl EdgeServer {
         match params.action.as_str() {
             "build" | "submit" => {
                 return Json(TradeResponse::Error {
-                    error: "Execution (build/submit) coming soon. See: https://docs.edge.trade/agents/tools/trade#execution".to_string()
+                    error: format!(
+                        "Execution (build/submit) coming soon. See: {}/tools/trade#execution",
+                        crate::types::urls::DOCS_BASE_URL
+                    ),
                 });
             }
             _ => {}
@@ -386,8 +366,9 @@ impl EdgeServer {
             _ => {
                 return Json(TradeResponse::Error {
                     error: format!(
-                        "Unknown action: {}. See: https://docs.edge.trade/agents/tools/trade",
-                        params.action
+                        "Unknown action: {}. See: {}/tools/trade",
+                        params.action,
+                        crate::types::urls::DOCS_BASE_URL
                     ),
                 });
             }
@@ -559,8 +540,9 @@ impl EdgeServer {
             }
             _ => Json(AlertsResponse::Error {
                 error: format!(
-                    "Unknown action: {}. See: https://docs.edge.trade/agents/tools/alerts",
-                    params.action
+                    "Unknown action: {}. See: {}/tools/alerts",
+                    params.action,
+                    crate::types::urls::DOCS_BASE_URL
                 ),
             }),
         }

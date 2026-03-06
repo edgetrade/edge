@@ -1,4 +1,6 @@
 use crate::client::IrisClient;
+use crate::docs_url;
+use crate::types::urls::DOCS_BASE_URL;
 use rmcp::{Server, ToolError, tool, tool_handler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,7 +17,7 @@ pub fn register(server: &Server, client: IrisClient) -> Result<(), Box<dyn std::
     server.add_tool(
         tool!(
             name = "trade",
-            description = "Place limit orders, manage entry/exit strategies, estimate price impact, and execute swaps. Actions: place, list, get, cancel, cancel_all, extend, create_entry_strategy, create_exit_strategy, list_strategies, apply_strategy, update_strategy, delete_strategy, impact, build, submit. See: https://docs.edge.trade/agents/tools/trade",
+            description = concat!("Place limit orders, manage entry/exit strategies, estimate price impact, and execute swaps. Actions: place, list, get, cancel, cancel_all, extend, create_entry_strategy, create_exit_strategy, list_strategies, apply_strategy, update_strategy, delete_strategy, impact, build, submit. See: ", docs_url!(), "/tools/trade"),
             input_schema = {
                 "type": "object",
                 "properties": {
@@ -331,17 +333,17 @@ async fn handle_trade(client: IrisClient, input: Value) -> Result<Value, ToolErr
                 .await
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         }
-        "build" => Err(ToolError::ExecutionError(
-            "Execution (build/submit) coming soon. See: https://docs.edge.trade/agents/tools/trade#execution"
-                .to_string(),
-        )),
-        "submit" => Err(ToolError::ExecutionError(
-            "Execution (build/submit) coming soon. See: https://docs.edge.trade/agents/tools/trade#execution"
-                .to_string(),
-        )),
+        "build" => Err(ToolError::ExecutionError(format!(
+            "Execution (build/submit) coming soon. See: {}/tools/trade#execution",
+            DOCS_BASE_URL
+        ))),
+        "submit" => Err(ToolError::ExecutionError(format!(
+            "Execution (build/submit) coming soon. See: {}/tools/trade#execution",
+            DOCS_BASE_URL
+        ))),
         _ => Err(ToolError::InvalidInput(format!(
-            "Unknown action: {}. See: https://docs.edge.trade/agents/tools/trade",
-            params.action
+            "Unknown action: {}. See: {}/tools/trade",
+            params.action, DOCS_BASE_URL
         ))),
     }
 }

@@ -1,4 +1,5 @@
 use crate::client::IrisClient;
+use crate::docs_url;
 use rmcp::{Server, ToolError, tool, tool_handler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -25,7 +26,7 @@ pub fn register(server: &Server, client: IrisClient) -> Result<(), Box<dyn std::
     server.add_tool(
         tool!(
             name = "screen",
-            description = "Screen tokens by market cap, liquidity, volume, holder metrics, and social presence. See: https://docs.edge.trade/agents/tools/screen",
+            description = concat!("Screen tokens by market cap, liquidity, volume, holder metrics, and social presence. See: ", docs_url!(), "/tools/screen"),
             input_schema = {
                 "type": "object",
                 "properties": {

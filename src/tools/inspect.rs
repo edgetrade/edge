@@ -1,4 +1,6 @@
 use crate::client::IrisClient;
+use crate::docs_url;
+use crate::types::urls::DOCS_BASE_URL;
 use rmcp::{Server, ToolError, tool, tool_handler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -16,7 +18,7 @@ pub fn register(server: &Server, client: IrisClient) -> Result<(), Box<dyn std::
     server.add_tool(
         tool!(
             name = "inspect",
-            description = "Inspect tokens and pairs with multiple views (token_overview, token_holders, token_analytics, graduation, pair_overview, pair_metrics, pair_candles, pair_swaps). See: https://docs.edge.trade/agents/tools/inspect",
+            description = concat!("Inspect tokens and pairs with multiple views (token_overview, token_holders, token_analytics, graduation, pair_overview, pair_metrics, pair_candles, pair_swaps). See: ", docs_url!(), "/tools/inspect"),
             input_schema = {
                 "type": "object",
                 "properties": {
@@ -173,8 +175,8 @@ async fn handle_inspect(client: IrisClient, input: Value) -> Result<Value, ToolE
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
         }
         _ => Err(ToolError::InvalidInput(format!(
-            "Unknown view: {}. See: https://docs.edge.trade/agents/tools/inspect",
-            params.view
+            "Unknown view: {}. See: {}/tools/inspect",
+            params.view, DOCS_BASE_URL
         ))),
     }
 }

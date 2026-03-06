@@ -1,3 +1,3 @@
-mod trpc_ws;
+mod http_sse;
 
-pub use trpc_ws::{IrisClient, IrisClientError};
+pub use http_sse::{IrisClient, IrisClientError};
