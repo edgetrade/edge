@@ -56,10 +56,42 @@ impl ServerHandler for EdgeServer {
             .tools
             .iter()
             .map(|def| {
-                let schema = match serde_json::from_value::<serde_json::Map<String, Value>>(def.input_schema.clone()) {
-                    Ok(m) => m,
-                    Err(_) => serde_json::Map::new(),
+                // Build a discriminated union for `data`. Each branch is titled with the
+                // action name so the LLM knows: pick action X → use the branch titled X for data.
+                let one_of: Vec<Value> = def
+                    .actions
+                    .iter()
+                    .map(|action| {
+                        let mut branch = action.input_schema.clone();
+                        if let Value::Object(ref mut map) = branch {
+                            map.insert("title".to_string(), Value::String(action.name.clone()));
+                            map.entry("type".to_string())
+                                .or_insert_with(|| Value::String("object".to_string()));
+                        }
+                        branch
+                    })
+                    .collect();
+
+                let data_schema = match one_of.len() {
+                    0 => serde_json::json!({ "type": "object" }),
+                    1 => one_of.into_iter().next().unwrap(),
+                    _ => serde_json::json!({ "oneOf": one_of }),
                 };
+
+                let mut schema = serde_json::Map::new();
+                schema.insert("type".to_string(), Value::String("object".to_string()));
+                schema.insert(
+                    "properties".to_string(),
+                    serde_json::json!({
+                        "action": {
+                            "type": "string",
+                            "enum": def.actions.iter().map(|a| a.name.as_str()).collect::<Vec<_>>()
+                        },
+                        "data": data_schema
+                    }),
+                );
+                schema.insert("required".to_string(), serde_json::json!(["action"]));
+
                 Tool::new(def.name.clone(), def.description.clone(), Arc::new(schema))
             })
             .collect::<Vec<_>>();
@@ -82,20 +114,7 @@ impl ServerHandler for EdgeServer {
         let http_client = self.http_client.clone();
 
         async move {
-            // Intercept locally-handled agent actions before any manifest lookup
-            // so they survive manifest refresh cycles.
-            if name == "agent" {
-                let local_action = args.get("action").and_then(|v| v.as_str()).unwrap_or("");
-                if local_action == "register_alert" || local_action == "unregister_alert" {
-                    let data = args
-                        .get("data")
-                        .cloned()
-                        .unwrap_or(Value::Object(Default::default()));
-                    return handle_local_action(local_action, data, client, manifest, alert_registry, http_client)
-                        .await;
-                }
-            }
-
+            // Find the namespace tool, then resolve the action within it.
             let tool = manifest
                 .read()
                 .await
@@ -112,7 +131,6 @@ impl ServerHandler for EdgeServer {
                 }
             };
 
-            // Resolve the action within the namespace tool.
             let action_name = match args.get("action").and_then(|v| v.as_str()) {
                 Some(a) => a.to_string(),
                 None => {
@@ -123,12 +141,12 @@ impl ServerHandler for EdgeServer {
                         .collect::<Vec<_>>()
                         .join(", ");
                     return Ok(CallToolResult::error(vec![Content::text(format!(
-                        "Missing required field: action. Available actions for '{name}': {available}"
+                        "Missing required field: action. Available: {available}"
                     ))]));
                 }
             };
 
-            let action_def: ActionDef = match tool.actions.iter().find(|a| a.name == action_name) {
+            let action_def = match tool.actions.iter().find(|a| a.name == action_name) {
                 Some(a) => a.clone(),
                 None => {
                     let available = tool
@@ -138,12 +156,11 @@ impl ServerHandler for EdgeServer {
                         .collect::<Vec<_>>()
                         .join(", ");
                     return Ok(CallToolResult::error(vec![Content::text(format!(
-                        "Unknown action '{action_name}' for tool '{name}'. Available: {available}"
+                        "Unknown action '{action_name}'. Available: {available}"
                     ))]));
                 }
             };
 
-            // `data` is the procedure input; fall back to empty object for no-input actions.
             let data = args
                 .get("data")
                 .cloned()
@@ -307,6 +324,7 @@ impl EdgeServer {
         {
             let mut m = manifest.write().await;
             inject_local_agent_actions(&mut m);
+            inject_local_resources(&mut m);
         }
 
         Ok(Self {
@@ -329,12 +347,17 @@ impl EdgeServer {
         Ok(())
     }
 
-    pub async fn serve_http(self, host: &str, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn serve_http(self, host: &str, port: u16, path: &str) -> Result<(), Box<dyn std::error::Error>> {
         use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
         use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 
         let addr = format!("{}:{}", host, port);
-        eprintln!("Starting HTTP server on http://{}/mcp", addr);
+        let path = if path.starts_with('/') {
+            path.to_string()
+        } else {
+            format!("/{}", path)
+        };
+        eprintln!("Starting HTTP server on http://{}{}", addr, path);
 
         let config = StreamableHttpServerConfig {
             stateful_mode: false,
@@ -342,7 +365,7 @@ impl EdgeServer {
         };
         let session_manager = Arc::new(LocalSessionManager::default());
         let service = StreamableHttpService::new(move || Ok(self.clone()), session_manager, config);
-        let router = axum::Router::new().nest_service("/mcp", service);
+        let router = axum::Router::new().nest_service(&path, service);
 
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         axum::serve(listener, router).await?;
@@ -427,6 +450,70 @@ pub(crate) fn inject_local_agent_actions(manifest: &mut McpManifest) {
         }),
         procedure: "agent.unregister_alert".to_string(),
         kind: "local".to_string(),
+    });
+
+    if let Some(enum_arr) = agent_tool
+        .input_schema
+        .pointer_mut("/properties/action/enum")
+        .and_then(|v| v.as_array_mut())
+    {
+        for action in ["register_alert", "unregister_alert"] {
+            if !enum_arr.iter().any(|v| v.as_str() == Some(action)) {
+                enum_arr.push(serde_json::Value::String(action.to_string()));
+            }
+        }
+    }
+
+    agent_tool.description.push_str("\n• register_alert: Register an alert subscription. Read edge://alerts for available alert types and edge://alert-delivery for exact delivery method schemas such as webhook, Redis stream, or Telegram.");
+    agent_tool
+        .description
+        .push_str("\n• unregister_alert: Stop and remove a previously registered alert subscription.");
+}
+
+/// Injects locally-managed resources into the manifest so they appear in MCP
+/// `list_resources` responses. Called both at startup and after each manifest refresh.
+pub(crate) fn inject_local_resources(manifest: &mut McpManifest) {
+    const URI: &str = "edge://alert-delivery";
+    if manifest.resources.iter().any(|r| r.uri == URI) {
+        return;
+    }
+    manifest.resources.push(crate::manifest::ResourceDef {
+        uri: URI.to_string(),
+        name: "Alert Delivery Methods".to_string(),
+        description: "Supported delivery targets for alert registrations: webhook, Redis stream, and Telegram. Each entry includes the required fields and their types.".to_string(),
+        mime_type: "application/json".to_string(),
+        content: serde_json::json!([
+            {
+                "type": "webhook",
+                "description": "POST alert payloads to an HTTPS endpoint.",
+                "required": ["type", "url"],
+                "fields": {
+                    "type":   { "type": "string", "const": "webhook" },
+                    "url":    { "type": "string", "description": "HTTPS endpoint that will receive POST requests" },
+                    "secret": { "type": "string", "description": "Optional HMAC secret used to sign each request for verification" }
+                }
+            },
+            {
+                "type": "redis",
+                "description": "Push alert events onto a Redis stream.",
+                "required": ["type", "url", "channel"],
+                "fields": {
+                    "type":    { "type": "string", "const": "redis" },
+                    "url":     { "type": "string", "description": "Redis connection URL (e.g. redis://host:6379)" },
+                    "channel": { "type": "string", "description": "Redis stream key or channel name to publish events to" }
+                }
+            },
+            {
+                "type": "telegram",
+                "description": "Send alert notifications to a Telegram chat or group.",
+                "required": ["type", "bot_token", "chat_id"],
+                "fields": {
+                    "type":      { "type": "string", "const": "telegram" },
+                    "bot_token": { "type": "string", "description": "Telegram bot API token from @BotFather" },
+                    "chat_id":   { "type": "string", "description": "Telegram chat or group ID to receive alert messages" }
+                }
+            }
+        ]),
     });
 }
 

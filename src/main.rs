@@ -12,7 +12,7 @@ mod subscriptions;
 mod urls;
 
 use manifest::McpManifest;
-use server::{EdgeServer, inject_local_agent_actions};
+use server::{EdgeServer, inject_local_agent_actions, inject_local_resources};
 use urls::{DOCS_BASE_URL, IRIS_API_URL};
 
 #[derive(Parser)]
@@ -24,6 +24,7 @@ use urls::{DOCS_BASE_URL, IRIS_API_URL};
 struct Cli {
     #[arg(
         long,
+        global = true,
         env = "EDGE_API_KEY",
         help = "Edge API key (or set EDGE_API_KEY env var). Get one at https://edge.trade"
     )]
@@ -36,26 +37,7 @@ struct Cli {
     )]
     transport: String,
 
-    #[arg(
-        long,
-        default_value = "127.0.0.1",
-        help = "Host address to bind when using --transport http"
-    )]
-    host: Option<String>,
-
-    #[arg(long, default_value = "3000", help = "Port to listen on when using --transport http")]
-    port: u16,
-
-    #[arg(long, help = "Open the Edge Trade documentation in your browser")]
-    docs: bool,
-
-    #[arg(long, help = "Print available MCP tools as JSON and exit")]
-    list_tools: bool,
-
-    #[arg(long, help = "Ping the Edge API and exit with 0 on success")]
-    ping: bool,
-
-    #[arg(long, help = "Print verbose connection and request logs to stderr")]
+    #[arg(long, global = true, help = "Print verbose connection and request logs to stderr")]
     verbose: bool,
 
     #[command(subcommand)]
@@ -64,6 +46,25 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    #[command(about = "Print version information and exit")]
+    Version,
+    #[command(about = "Print available MCP tools as JSON and exit")]
+    ListTools,
+    #[command(about = "Ping the Edge API and exit with 0 on success")]
+    Ping,
+    #[command(about = "Serve the MCP server over HTTP")]
+    Server {
+        #[arg(long, default_value = "127.0.0.1", help = "Host address to bind")]
+        host: String,
+        #[arg(long, default_value = "3000", help = "Port to listen on")]
+        port: u16,
+        #[arg(
+            long,
+            default_value = "mcp",
+            help = "Path prefix for the HTTP endpoint (e.g. mcp → /mcp)"
+        )]
+        path: String,
+    },
     #[command(about = "Manage Edge Trade skills")]
     Skill {
         #[command(subcommand)]
@@ -131,15 +132,22 @@ fn sha256(data: &[u8]) -> Vec<u8> {
 async fn main() {
     let cli = Cli::parse();
 
-    if cli.docs {
-        eprintln!("Edge Trade Documentation: {}", DOCS_BASE_URL);
-        if let Ok(browser) = std::env::var("BROWSER") {
-            let _ = process::Command::new(browser).arg(DOCS_BASE_URL).spawn();
+    if matches!(cli.command, Some(Commands::Version)) {
+        let pkg_version = env!("CARGO_PKG_VERSION");
+        let sha = option_env!("VERGEN_GIT_SHA").unwrap_or("unknown");
+        let short_sha = &sha[..sha.len().min(7)];
+        let describe = option_env!("VERGEN_GIT_DESCRIBE").unwrap_or("");
+        // describe is empty when there's no tag reachable; when it matches a
+        // tag exactly it's just the tag name, otherwise "tag-N-gSHA".
+        if describe.is_empty() || describe.starts_with(short_sha) {
+            println!("edge {pkg_version} (commit {short_sha})");
+        } else {
+            println!("edge {pkg_version} ({describe}, commit {short_sha})");
         }
         return;
     }
 
-    if cli.ping {
+    if matches!(cli.command, Some(Commands::Ping)) {
         let iris_url = std::env::var("EDGE_IRIS_URL").unwrap_or_else(|_| IRIS_API_URL.to_string());
         let ping_url = format!("{}/ping", iris_url);
 
@@ -177,7 +185,7 @@ async fn main() {
 
     let manifest = fetch_manifest(&manifest_url, &api_key).await;
 
-    if cli.list_tools {
+    if matches!(cli.command, Some(Commands::ListTools)) {
         println!("{}", serde_json::to_string_pretty(&manifest.tools).unwrap());
         return;
     }
@@ -239,6 +247,7 @@ async fn main() {
                             match serde_json::from_slice::<McpManifest>(&body) {
                                 Ok(mut new_manifest) => {
                                     inject_local_agent_actions(&mut new_manifest);
+                                    inject_local_resources(&mut new_manifest);
                                     *manifest_ref.write().await = new_manifest;
                                     current_hash = new_hash;
                                     eprintln!("[edge] manifest reloaded");
@@ -255,19 +264,15 @@ async fn main() {
         });
     }
 
-    let result = match cli.transport.as_str() {
-        "stdio" => server.serve_stdio().await,
-        "sse" | "http" => {
-            let host = cli.host.unwrap_or_else(|| "127.0.0.1".to_string());
-            if cli.transport == "sse" {
-                eprintln!("[edge] --transport sse is deprecated, use --transport http");
-            }
-            server.serve_http(&host, cli.port).await
+    let result = match cli.command {
+        Some(Commands::Server { host, port, path }) => server.serve_http(&host, port, &path).await,
+        None if cli.transport == "sse" => {
+            eprintln!("[edge] --transport sse is deprecated, use the server subcommand");
+            server.serve_http("127.0.0.1", 3000, "mcp").await
         }
-        _ => {
-            eprintln!("Unknown transport: {}. Use stdio or http", cli.transport);
-            process::exit(1);
-        }
+        None if cli.transport == "http" => server.serve_http("127.0.0.1", 3000, "mcp").await,
+        None => server.serve_stdio().await,
+        _ => unreachable!(),
     };
 
     if let Err(e) = result {
