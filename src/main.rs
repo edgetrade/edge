@@ -1,50 +1,127 @@
 use clap::{Parser, Subcommand};
 use std::process;
+use std::time::Duration;
 
 mod client;
+mod manifest;
 mod server;
 mod subscriptions;
-mod types;
+mod urls;
 
+use manifest::McpManifest;
 use server::EdgeServer;
-use types::urls::{DOCS_BASE_URL, IRIS_API_URL};
+use urls::{DOCS_BASE_URL, IRIS_API_URL};
 
 #[derive(Parser)]
 #[command(name = "edge")]
-#[command(about = "Edge's MCP client", long_about = None)]
-#[command(disable_help_subcommand = true)]
+#[command(
+    about = "Edge Trade MCP server — connects AI agents to real-time market data, portfolio tracking, and trading."
+)]
+#[command(long_about = None)]
 struct Cli {
-    #[arg(long)]
+    #[arg(
+        long,
+        env = "EDGE_API_KEY",
+        help = "Edge API key (or set EDGE_API_KEY env var). Get one at https://edge.trade"
+    )]
     api_key: Option<String>,
 
-    #[arg(long, default_value = "stdio")]
+    #[arg(
+        long,
+        default_value = "stdio",
+        help = "Transport: stdio (default) or http. Use stdio for Cursor/Claude Desktop; use http to serve over a local port."
+    )]
     transport: String,
 
-    #[arg(long)]
+    #[arg(
+        long,
+        default_value = "127.0.0.1",
+        help = "Host address to bind when using --transport http"
+    )]
     host: Option<String>,
 
-    #[arg(long, default_value = "3000")]
+    #[arg(long, default_value = "3000", help = "Port to listen on when using --transport http")]
     port: u16,
+
+    #[arg(long, help = "Open the Edge Trade documentation in your browser")]
+    docs: bool,
+
+    #[arg(long, help = "Print available MCP tools as JSON and exit")]
+    list_tools: bool,
+
+    #[arg(long, help = "Ping the Edge API and exit with 0 on success")]
+    ping: bool,
+
+    #[arg(long, help = "Print verbose connection and request logs to stderr")]
+    verbose: bool,
 
     #[command(subcommand)]
     command: Option<Commands>,
-
-    #[arg(long)]
-    docs: bool,
-
-    #[arg(long)]
-    list_tools: bool,
-
-    #[arg(long)]
-    ping: bool,
-
-    #[arg(long)]
-    verbose: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    Help { tool: Option<String> },
+    #[command(about = "Manage Edge Trade skills")]
+    Skill {
+        #[command(subcommand)]
+        command: SkillCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum SkillCommand {
+    #[command(about = "List available skills from the manifest")]
+    List,
+    #[command(about = "Install a skill to a local directory")]
+    Install {
+        /// Name of the skill to install
+        name: String,
+        /// Directory to install into (writes <dir>/<name>/SKILL.md)
+        #[arg(long)]
+        path: String,
+    },
+}
+
+async fn fetch_manifest(url: &str, api_key: &str) -> McpManifest {
+    let client = reqwest::Client::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(180);
+    let mut delay = Duration::from_secs(1);
+    loop {
+        match client.get(url).bearer_auth(api_key).send().await {
+            Ok(r) if r.status().is_success() => {
+                return r.json::<McpManifest>().await.unwrap_or_else(|e| {
+                    eprintln!("[edge] manifest parse error: {e}");
+                    process::exit(1);
+                });
+            }
+            Ok(r) => eprintln!("[edge] manifest fetch failed: HTTP {}", r.status()),
+            Err(e) => eprintln!("[edge] manifest fetch error: {e}"),
+        }
+        if tokio::time::Instant::now() + delay > deadline {
+            eprintln!("[edge] could not reach iris after 3 minutes. Exiting.");
+            process::exit(1);
+        }
+        tokio::time::sleep(delay).await;
+        delay = (delay * 2).min(Duration::from_secs(30));
+    }
+}
+
+async fn fetch_manifest_raw(url: &str, api_key: &str) -> Result<Vec<u8>, reqwest::Error> {
+    reqwest::Client::new()
+        .get(url)
+        .bearer_auth(api_key)
+        .send()
+        .await?
+        .bytes()
+        .await
+        .map(|b| b.to_vec())
+}
+
+fn sha256(data: &[u8]) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().to_vec()
 }
 
 #[tokio::main]
@@ -56,11 +133,6 @@ async fn main() {
         if let Ok(browser) = std::env::var("BROWSER") {
             let _ = process::Command::new(browser).arg(DOCS_BASE_URL).spawn();
         }
-        return;
-    }
-
-    if cli.list_tools {
-        print_tools_list();
         return;
     }
 
@@ -91,45 +163,93 @@ async fn main() {
         }
     }
 
-    if let Some(Commands::Help { tool }) = cli.command {
-        if let Some(tool_name) = tool {
-            print_tool_help(&tool_name);
-        } else {
-            print_general_help();
+    let api_key = cli.api_key.unwrap_or_else(|| {
+        eprintln!("Error: API key required. Set EDGE_API_KEY or use --api-key");
+        eprintln!("See: {}/authentication", DOCS_BASE_URL);
+        process::exit(1);
+    });
+
+    let iris_url = std::env::var("EDGE_IRIS_URL").unwrap_or_else(|_| IRIS_API_URL.to_string());
+    let manifest_url = format!("{}/mcp/manifest", iris_url);
+
+    let manifest = fetch_manifest(&manifest_url, &api_key).await;
+
+    if cli.list_tools {
+        println!("{}", serde_json::to_string_pretty(&manifest.tools).unwrap());
+        return;
+    }
+
+    if let Some(Commands::Skill { command }) = &cli.command {
+        match command {
+            SkillCommand::List => {
+                for skill in &manifest.skills {
+                    println!("{}: {}", skill.name, skill.description);
+                }
+            }
+            SkillCommand::Install { name, path } => match manifest.skills.iter().find(|s| &s.name == name) {
+                Some(skill) => {
+                    let dir = std::path::Path::new(path).join(name);
+                    if let Err(e) = std::fs::create_dir_all(&dir) {
+                        eprintln!("[edge] failed to create directory: {}", e);
+                        process::exit(1);
+                    }
+                    if let Err(e) = std::fs::write(dir.join("SKILL.md"), &skill.content) {
+                        eprintln!("[edge] failed to write skill: {}", e);
+                        process::exit(1);
+                    }
+                    eprintln!("[edge] installed skill '{}' to {}", name, dir.display());
+                }
+                None => {
+                    eprintln!("[edge] skill '{}' not found in manifest", name);
+                    process::exit(1);
+                }
+            },
         }
         return;
     }
 
-    let api_key = cli
-        .api_key
-        .or_else(|| std::env::var("EDGE_API_KEY").ok())
-        .unwrap_or_else(|| {
-            eprintln!("Error: API key required. Set EDGE_API_KEY or use --api-key");
-            eprintln!("See: {}/authentication", DOCS_BASE_URL);
-            process::exit(1);
-        });
-
-    let iris_url = IRIS_API_URL.to_string();
-
-    let server = EdgeServer::new(&iris_url, &api_key, cli.verbose)
+    let server = EdgeServer::new(&iris_url, &api_key, manifest.clone(), cli.verbose)
         .await
         .unwrap_or_else(|e| {
             eprintln!("Failed to connect to Iris: {}", e);
             process::exit(1);
         });
 
+    {
+        let manifest_url = manifest_url.clone();
+        let api_key = api_key.clone();
+        let initial_body = serde_json::to_vec(&manifest).unwrap_or_default();
+        let mut current_hash = sha256(&initial_body);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                match fetch_manifest_raw(&manifest_url, &api_key).await {
+                    Ok(body) => {
+                        let new_hash = sha256(&body);
+                        if new_hash != current_hash {
+                            eprintln!("[edge] manifest updated — restart recommended to pick up changes");
+                            current_hash = new_hash;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[edge] heartbeat: could not reach iris: {e} — serving cached manifest")
+                    }
+                }
+            }
+        });
+    }
+
     let result = match cli.transport.as_str() {
         "stdio" => server.serve_stdio().await,
-        "sse" => {
+        "sse" | "http" => {
             let host = cli.host.unwrap_or_else(|| "127.0.0.1".to_string());
-            server.serve_sse(&host, cli.port).await
-        }
-        "http" => {
-            let host = cli.host.unwrap_or_else(|| "127.0.0.1".to_string());
+            if cli.transport == "sse" {
+                eprintln!("[edge] --transport sse is deprecated, use --transport http");
+            }
             server.serve_http(&host, cli.port).await
         }
         _ => {
-            eprintln!("Unknown transport: {}. Use stdio, sse, or http", cli.transport);
+            eprintln!("Unknown transport: {}. Use stdio or http", cli.transport);
             process::exit(1);
         }
     };
@@ -137,90 +257,5 @@ async fn main() {
     if let Err(e) = result {
         eprintln!("MCP server error: {}", e);
         process::exit(1);
-    }
-}
-
-fn print_tools_list() {
-    let tools = serde_json::json!({
-        "tools": [
-            {"name": "search", "description": "Search tokens by name or address"},
-            {"name": "inspect", "description": "Inspect tokens and pairs with multiple views"},
-            {"name": "screen", "description": "Screen tokens by market cap, liquidity, and holder metrics"},
-            {"name": "portfolio", "description": "View wallet holdings, history, and transactions"},
-            {"name": "trade", "description": "Place limit orders, manage strategies, estimate impact"},
-            {"name": "alerts", "description": "Subscribe to price alerts and order updates"}
-        ]
-    });
-    println!("{}", serde_json::to_string_pretty(&tools).unwrap());
-}
-
-fn print_general_help() {
-    println!("Edge Trade MCP Client\n");
-    println!("Transport modes:");
-    println!("  --transport stdio  - Standard I/O (default, for Cursor/Claude Desktop)");
-    println!("  --transport sse    - Server-Sent Events HTTP server");
-    println!("  --transport http   - Streamable HTTP server\n");
-    println!("Available tools:");
-    println!("  search     - Search tokens by name or address");
-    println!("  inspect    - Inspect tokens and pairs (9 views)");
-    println!("  screen     - Screen tokens by filters");
-    println!("  portfolio  - View wallet holdings and history");
-    println!("  trade      - Place orders and manage strategies");
-    println!("  alerts     - Subscribe to real-time alerts\n");
-    println!("Usage: edge help <tool> for detailed information");
-    println!("Docs: {}", DOCS_BASE_URL);
-}
-
-fn print_tool_help(tool: &str) {
-    match tool {
-        "search" => {
-            println!("search - Search tokens by name or address\n");
-            println!("Parameters:");
-            println!("  query: String       - Token name or address to search");
-            println!("  chain_id: String?   - Optional chain ID to filter results\n");
-            println!("Example:");
-            println!(r#"  {{"query": "USDC", "chain_id": "8453"}}"#);
-            println!("\nSee: {}/tools/search", DOCS_BASE_URL);
-        }
-        "inspect" => {
-            println!("inspect - Inspect tokens and pairs with multiple views\n");
-            println!("Parameters:");
-            println!("  chain_id: String    - Chain ID");
-            println!("  address: String     - Token or pair address");
-            println!("  view: String        - View type (see below)\n");
-            println!("Views:");
-            println!("  token_overview   - Basic token information");
-            println!("  token_holders    - Top holders with sniper/insider flags");
-            println!("  token_analytics  - Top traders by PnL");
-            println!("  graduation       - Bonding curve graduation status");
-            println!("  pair_overview    - Pair details and liquidity");
-            println!("  pair_metrics     - Price, volume, and market cap");
-            println!("  pair_candles     - OHLC candlestick data");
-            println!("  pair_swaps       - Recent swap transactions\n");
-            println!("Example:");
-            println!(r#"  {{"chain_id": "8453", "address": "0x...", "view": "pair_metrics"}}"#);
-            println!("\nSee: {}/tools/inspect", DOCS_BASE_URL);
-        }
-        "screen" => {
-            println!("screen - Screen tokens by market cap, liquidity, and holder metrics\n");
-            println!("See: {}/tools/screen", DOCS_BASE_URL);
-        }
-        "portfolio" => {
-            println!("portfolio - View wallet holdings, history, and transactions\n");
-            println!("See: {}/tools/portfolio", DOCS_BASE_URL);
-        }
-        "trade" => {
-            println!("trade - Place limit orders, manage strategies, estimate impact\n");
-            println!("See: {}/tools/trade", DOCS_BASE_URL);
-        }
-        "alerts" => {
-            println!("alerts - Subscribe to price alerts and order updates\n");
-            println!("See: {}/tools/alerts", DOCS_BASE_URL);
-        }
-        _ => {
-            println!("Unknown tool: {}", tool);
-            println!("Available tools: search, inspect, screen, portfolio, trade, alerts");
-            println!("\nUse 'edge help' to see all tools");
-        }
     }
 }

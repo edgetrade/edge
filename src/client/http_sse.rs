@@ -5,7 +5,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc;
 
-use crate::types::urls::DOCS_BASE_URL;
+use crate::urls::DOCS_BASE_URL;
 
 #[derive(Error, Debug)]
 #[allow(dead_code)]
@@ -33,6 +33,7 @@ pub enum IrisClientError {
 }
 
 impl IrisClientError {
+    #[allow(dead_code)]
     pub fn docs_url(&self) -> String {
         match self {
             Self::Http(_) | Self::Timeout | Self::InvalidResponse(_) | Self::Rpc(_) => {
@@ -112,10 +113,6 @@ impl IrisClient {
     }
 
     pub async fn query(&self, path: &str, input: Value) -> Result<Value, IrisClientError> {
-        self.call(path, input).await
-    }
-
-    pub async fn mutation(&self, path: &str, input: Value) -> Result<Value, IrisClientError> {
         self.call(path, input).await
     }
 
@@ -201,16 +198,65 @@ impl IrisClient {
         self.inner.subscriptions.lock().await.insert(id, tx.clone());
 
         let inner = self.inner.clone();
-        let path_clone = path.to_string();
+        let path_owned = path.to_string();
 
         tokio::spawn(async move {
-            if let Err(e) = inner
-                .start_subscription(&path_clone, input.clone(), id, tx)
-                .await
-                && inner.verbose
-            {
-                eprintln!("[edge] ✗ subscribe {} (id={}): {}", path_clone, id, e);
+            // 5-minute window: set on first error, reset on any successful connection.
+            let mut error_deadline: Option<tokio::time::Instant> = None;
+            let mut backoff = std::time::Duration::from_secs(1);
+
+            loop {
+                // Honour explicit unsubscribe() calls.
+                if !inner.subscriptions.lock().await.contains_key(&id) {
+                    break;
+                }
+
+                match inner
+                    .start_subscription(&path_owned, input.clone(), id, tx.clone())
+                    .await
+                {
+                    Ok(()) => {
+                        // tx.is_closed() is true when the receiver (server.rs task) was
+                        // dropped intentionally — treat as a clean stop.
+                        if tx.is_closed() {
+                            break;
+                        }
+                        // Server closed the stream (e.g. reboot/deploy). Reset state and
+                        // reconnect after a brief pause.
+                        if inner.verbose {
+                            eprintln!("[edge] ↻ {} (id={}) stream ended — reconnecting", path_owned, id);
+                        }
+                        error_deadline = None;
+                        backoff = std::time::Duration::from_secs(1);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                    Err(IrisClientError::Auth(e)) => {
+                        // Auth errors are permanent — no point retrying.
+                        eprintln!("[edge] ✗ {} (id={}) auth error, stopping: {}", path_owned, id, e);
+                        break;
+                    }
+                    Err(e) => {
+                        if inner.verbose {
+                            eprintln!("[edge] ✗ {} (id={}) error: {}", path_owned, id, e);
+                        }
+                        // Start the 5-minute clock on the first error.
+                        let deadline = error_deadline
+                            .get_or_insert_with(|| tokio::time::Instant::now() + std::time::Duration::from_secs(300));
+                        if tokio::time::Instant::now() >= *deadline {
+                            eprintln!(
+                                "[edge] ✗ {} (id={}) could not reconnect within 5 minutes — giving up",
+                                path_owned, id
+                            );
+                            break;
+                        }
+                        tokio::time::sleep(backoff).await;
+                        backoff = (backoff * 2).min(std::time::Duration::from_secs(30));
+                    }
+                }
             }
+
+            // Clean up so callers see the channel close.
+            inner.subscriptions.lock().await.remove(&id);
         });
 
         if self.inner.verbose {
@@ -240,7 +286,8 @@ impl IrisClientInner {
     ) -> Result<(), IrisClientError> {
         let input_json = serde_json::to_string(&input)
             .map_err(|e| IrisClientError::InvalidResponse(format!("Failed to serialize input: {}", e)))?;
-        let encoded_input = base64_url_encode(&input_json);
+        use base64::Engine as _;
+        let encoded_input = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&input_json);
 
         let url = format!("{}/v1/subscribe/{}?input={}", self.base_url, path, encoded_input);
 
@@ -294,48 +341,5 @@ impl IrisClientInner {
         }
 
         Ok(())
-    }
-}
-
-fn base64_url_encode(input: &str) -> String {
-    use std::fmt::Write;
-
-    let bytes = input.as_bytes();
-    let mut result = String::new();
-
-    for chunk in bytes.chunks(3) {
-        let mut buf = [0u8; 3];
-        for (i, &b) in chunk.iter().enumerate() {
-            buf[i] = b;
-        }
-
-        let b1 = (buf[0] >> 2) & 0x3F;
-        let b2 = ((buf[0] & 0x03) << 4) | ((buf[1] >> 4) & 0x0F);
-        let b3 = ((buf[1] & 0x0F) << 2) | ((buf[2] >> 6) & 0x03);
-        let b4 = buf[2] & 0x3F;
-
-        write!(&mut result, "{}", encode_char(b1)).unwrap();
-        write!(&mut result, "{}", encode_char(b2)).unwrap();
-
-        if chunk.len() > 1 {
-            write!(&mut result, "{}", encode_char(b3)).unwrap();
-        }
-
-        if chunk.len() > 2 {
-            write!(&mut result, "{}", encode_char(b4)).unwrap();
-        }
-    }
-
-    result
-}
-
-fn encode_char(b: u8) -> char {
-    match b {
-        0..=25 => (b'A' + b) as char,
-        26..=51 => (b'a' + (b - 26)) as char,
-        52..=61 => (b'0' + (b - 52)) as char,
-        62 => '-',
-        63 => '_',
-        _ => unreachable!(),
     }
 }
