@@ -13,14 +13,14 @@ vergen-gitcl = { version = "9.1.0", features = [] }
 
 [dependencies]
 axum = "0.8.8"
-redis = { version = "1.0.4", features = ["tokio-comp"] }
+redis = { version = "1.0.5", features = ["tokio-comp"] }
 base64 = "0.22.1"
 chrono = "0.4.44"
 clap = { version = "4.5.60", features = ["derive", "env"] }
 futures = "0.3.32"
 hmac = "0.12.1"
 reqwest = { version = "0.13.2", features = ["json", "stream"] }
-rmcp = { version = "1.1.0", features = [
+rmcp = { version = "1.2.0", features = [
   "server",
   "macros",
   "transport-io",
