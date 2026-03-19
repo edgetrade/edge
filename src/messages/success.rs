@@ -159,8 +159,8 @@ pub fn manifest_refreshed() {
 }
 
 /// Success: Query response
-pub fn query_response(path: &str) {
-    println!("Query response: {}", path);
+pub fn query_response(path: &str, output: &str) {
+    println!("Query response: {} output={}", path, output);
 }
 
 /// Success: Query request

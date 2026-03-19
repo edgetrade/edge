@@ -119,15 +119,20 @@ impl IrisClient {
         })
     }
 
-    pub async fn query<T: serde::de::DeserializeOwned>(&self, path: &str, input: Value) -> Result<T, IrisClientError> {
+    pub async fn query<T: serde::de::DeserializeOwned + Serialize + Clone>(
+        &self,
+        path: &str,
+        input: Value,
+    ) -> Result<T, IrisClientError> {
         if self.inner.verbose {
             messages::success::query_request(path, &input.to_string());
         }
-        let result = self.call::<T>(path, input).await;
+        let result = self.call::<T>(path, input).await?;
+        let rez = result.clone();
         if self.inner.verbose {
-            messages::success::query_response(path);
+            messages::success::query_response(path, &serde_json::to_string(&rez).unwrap());
         }
-        result
+        Ok(result)
     }
 
     pub async fn mutation<T: serde::de::DeserializeOwned>(
