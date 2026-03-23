@@ -144,7 +144,7 @@ impl PasskeyRegistration {
     pub fn new(rp_id: impl Into<String>, user_id: impl Into<String>, user_name: impl Into<String>) -> Self {
         // Generate random challenge
         let mut challenge = vec![0u8; 32];
-        getrandom::getrandom(&mut challenge).expect("System RNG available");
+        getrandom::fill(&mut challenge).expect("System RNG available");
 
         Self {
             challenge,

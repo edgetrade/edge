@@ -16,7 +16,8 @@ pub mod transport;
 pub use filestore::{Session as FileStoreSession, SessionError as FileStoreError};
 pub use keyring::{Session as KeyringSession, SessionError as KeyringError};
 
-use crate::session::crypto::UsersEncryptionKeys;
+use crate::messages;
+use crypto::UsersEncryptionKeys;
 
 /// Unified session error type.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -93,7 +94,7 @@ impl Session {
     ///
     /// # Example
     /// ```rust
-    /// use edge_trade::session::Session;
+    /// use poseidon::session::Session;
     ///
     /// let session = Session::new();
     /// if session.is_unlocked() {
@@ -104,7 +105,7 @@ impl Session {
         if keyring_available() {
             Session::Keyring(KeyringSession::new())
         } else {
-            eprintln!("⚠️  WARNING: No OS keyring available. Using file storage fallback.");
+            messages::warning::keyring_unavailable();
             Session::File(FileStoreSession::new())
         }
     }

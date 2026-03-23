@@ -6,7 +6,6 @@
 
 use tyche_enclave::types::chain_type::ChainType;
 
-use crate::commands::{CommandError, CommandResult};
 use crate::messages;
 use crate::session::Session;
 use crate::wallet::import::import_wallet;
@@ -21,10 +20,10 @@ use crate::wallet::import::import_wallet;
 ///
 /// # Errors
 /// Returns an error if the file cannot be read
-fn read_private_key_file(path: &str) -> CommandResult<String> {
+fn read_private_key_file(path: &str) -> messages::success::CommandResult<String> {
     std::fs::read_to_string(path)
         .map(|s| s.trim().to_string())
-        .map_err(|e| CommandError::Io(format!("Failed to read private key file: {}", e)))
+        .map_err(|e| messages::error::CommandError::Io(format!("Failed to read private key file: {}", e)))
 }
 
 /// Import a wallet from private key file or manual input.
@@ -46,7 +45,7 @@ pub async fn wallet_import(
     name: Option<String>,
     key_file: Option<String>,
     client: &crate::client::IrisClient,
-) -> CommandResult<()> {
+) -> messages::success::CommandResult<()> {
     // Step 1: Ensure session is ready
     crate::commands::key::session_manager::ensure_session_ready("wallet")?;
 
@@ -54,8 +53,8 @@ pub async fn wallet_import(
     let session = Session::new();
     let uek = session
         .get_user_encryption_key()
-        .map_err(|e| CommandError::Session(e.to_string()))?
-        .ok_or_else(|| CommandError::Session("Session unavailable".to_string()))?;
+        .map_err(|e| messages::error::CommandError::Session(e.to_string()))?
+        .ok_or_else(|| messages::error::CommandError::Session("Session unavailable".to_string()))?;
 
     // Step 3: Print progress message
     messages::success::wallet_importing();
@@ -69,15 +68,15 @@ pub async fn wallet_import(
             ChainType::EVM => "Enter your EVM private key (hex format, with or without 0x prefix): ",
             ChainType::SVM => "Enter your SVM private key (base58 format): ",
         };
-        rpassword::prompt_password(prompt).map_err(|e| CommandError::Io(e.to_string()))?
+        rpassword::prompt_password(prompt).map_err(|e| messages::error::CommandError::Io(e.to_string()))?
     };
 
     // Step 5: Import the wallet
     let name = super::name::ensure_wallet_name(chain, name);
     // TODO: add enclave keys
-    let wallet = import_wallet(&key_input, chain, name, &uek, None, client)
+    let wallet = import_wallet(&key_input, chain, name, &uek, client)
         .await
-        .map_err(CommandError::from)?;
+        .map_err(messages::error::CommandError::from)?;
 
     // Step 6: Print success message
     messages::success::wallet_imported(chain.to_string().as_str(), &wallet.address);

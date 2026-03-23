@@ -9,13 +9,12 @@ use sha3::{Digest as Sha3Digest, Keccak256};
 
 use tyche_enclave::{
     envelopes::storage::{StorageEnvelope, WalletKey},
-    shared::attestation::TransportKeyReceiver,
     types::chain_type::ChainType,
 };
 
 use crate::client::IrisClient;
+use crate::client::upsert_encrypted_wallet;
 use crate::session::crypto::UsersEncryptionKeys;
-use crate::wallet::api::upsert_encrypted_wallet;
 
 use super::types::{Wallet, WalletError, WalletResult};
 
@@ -38,14 +37,13 @@ pub async fn import_wallet(
     chain: ChainType,
     name: String,
     user_key: &UsersEncryptionKeys,
-    enclave_keys: Option<&TransportKeyReceiver>,
     client: &IrisClient,
 ) -> WalletResult<Wallet> {
     let wallet = match chain {
         ChainType::EVM => import_evm(private_key, user_key, name)?,
         ChainType::SVM => import_svm(private_key, user_key, name)?,
     };
-    upsert_encrypted_wallet(wallet, user_key, enclave_keys, client).await
+    upsert_encrypted_wallet(wallet, user_key, client).await
 }
 
 /// Import an EVM wallet from a hex-encoded private key.

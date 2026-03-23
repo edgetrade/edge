@@ -4,9 +4,8 @@
 //! Each agent can have at most one wallet per chain type.
 
 use crate::client::IrisClient;
-use crate::commands::CommandResult;
+use crate::client::list_wallets;
 use crate::messages;
-use crate::wallet::api::list_wallets;
 
 /// List wallets for the agent.
 ///
@@ -19,7 +18,7 @@ use crate::wallet::api::list_wallets;
 /// Returns an error if:
 /// - API key is not provided
 /// - API request fails
-pub async fn wallet_list(client: &IrisClient) -> CommandResult<()> {
+pub async fn wallet_list(client: &IrisClient) -> messages::success::CommandResult<()> {
     let wallets = list_wallets(client).await?;
 
     messages::success::wallets_list_header();

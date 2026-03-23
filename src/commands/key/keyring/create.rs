@@ -3,16 +3,18 @@
 //! Creates a new user encryption key and stores it directly in the OS keyring.
 //! Supports optional user-provided passwords derived via HKDF-SHA256.
 
-use crate::commands::{CommandError, CommandResult};
-use crate::messages;
-use crate::session::KeyringSession as Session;
-use crate::session::crypto::UsersEncryptionKeys;
+use std::io::Write;
+
 use ed25519_dalek::SigningKey;
 use hkdf::Hkdf;
 use sha2::Sha256;
-use std::io::Write;
+
 use tyche_enclave::envelopes::storage::derive_storage_key;
 use tyche_enclave::types::constants::USER_ENCRYPTION_KEY_HKDF_INFO;
+
+use crate::messages;
+use crate::session::KeyringSession as Session;
+use crate::session::crypto::UsersEncryptionKeys;
 
 /// Create a new key in the OS keyring with context-aware messaging.
 ///
@@ -34,7 +36,7 @@ use tyche_enclave::types::constants::USER_ENCRYPTION_KEY_HKDF_INFO;
 /// - Key already exists (idempotent protection via keyring)
 /// - Passwords do not match
 /// - HKDF expansion fails
-pub fn keyring_create_with_context(context: &str) -> CommandResult<()> {
+pub fn keyring_create_with_context(context: &str) -> messages::success::CommandResult<()> {
     // Show context-specific intro message
     if context == "wallet" {
         messages::success::no_key_found_create();
@@ -76,7 +78,9 @@ pub fn keyring_create_with_context(context: &str) -> CommandResult<()> {
         let confirm_password = rpassword::prompt_password(messages::prompt::confirm_password());
 
         if password_trimmed != confirm_password?.trim() {
-            return Err(CommandError::InvalidInput("Passwords do not match".to_string()));
+            return Err(messages::error::CommandError::InvalidInput(
+                "Passwords do not match".to_string(),
+            ));
         }
     }
 
@@ -104,26 +108,27 @@ pub fn keyring_create_with_context(context: &str) -> CommandResult<()> {
 /// - Keyring is unavailable
 /// - Key already exists (idempotent protection via keyring)
 /// - HKDF expansion fails
-fn keyring_create_core(password: &str) -> CommandResult<UsersEncryptionKeys> {
+fn keyring_create_core(password: &str) -> messages::success::CommandResult<UsersEncryptionKeys> {
     let session = Session::new();
 
     // Check if key already exists
     if session.is_unlocked() {
-        return Err(CommandError::AlreadyExists);
+        return Err(messages::error::CommandError::AlreadyExists);
     }
 
     let uek = if password.is_empty() {
         // Generate random 32-byte key
-        let mut key_bytes = [0u8; 32];
-        getrandom::getrandom(&mut key_bytes)
-            .map_err(|_| CommandError::Crypto("Failed to generate random key".to_string()))?;
-        UsersEncryptionKeys::new(SigningKey::from_bytes(&key_bytes), key_bytes, None)
+        let mut uek_bytes = [0u8; 32];
+        getrandom::fill(&mut uek_bytes)
+            .map_err(|_| messages::error::CommandError::Crypto("Failed to generate random key".to_string()))?;
+        let uek = derive_storage_key(&uek_bytes);
+        UsersEncryptionKeys::new(SigningKey::from_bytes(&uek_bytes), uek, None)
     } else {
         // Derive 32-byte UEK from password using HKDF-SHA256
         let hkdf = Hkdf::<Sha256>::new(None, password.as_bytes());
         let mut uek_bytes = [0u8; 32];
         hkdf.expand(USER_ENCRYPTION_KEY_HKDF_INFO, &mut uek_bytes)
-            .map_err(|e| CommandError::Crypto(format!("HKDF expansion failed: {}", e)))?;
+            .map_err(|e| messages::error::CommandError::Crypto(format!("HKDF expansion failed: {}", e)))?;
         let uek = derive_storage_key(&uek_bytes);
         UsersEncryptionKeys::new(SigningKey::from_bytes(&uek_bytes), uek, None)
     };
@@ -131,7 +136,7 @@ fn keyring_create_core(password: &str) -> CommandResult<UsersEncryptionKeys> {
     // Store in keyring
     session
         .save(&uek, false)
-        .map_err(|e| CommandError::Storage(e.to_string()))?;
+        .map_err(|e| messages::error::CommandError::Storage(e.to_string()))?;
 
     Ok(uek)
 }
@@ -152,7 +157,7 @@ fn keyring_create_core(password: &str) -> CommandResult<UsersEncryptionKeys> {
 /// - Key already exists (idempotent protection via keyring)
 /// - Passwords do not match
 /// - HKDF expansion fails
-pub fn keyring_create() -> CommandResult<()> {
+pub fn keyring_create() -> messages::success::CommandResult<()> {
     keyring_create_with_context("")
 }
 
@@ -180,7 +185,7 @@ mod tests {
     }
 
     /// Internal function for testing key creation with password
-    fn keyring_create_with_password(password: &str) -> CommandResult<UserEncryptionKey> {
+    fn keyring_create_with_password(password: &str) -> messages::success::CommandResult<UserEncryptionKey> {
         keyring_create_core(password)
     }
 
@@ -258,7 +263,7 @@ mod tests {
         // Try to create again - should fail with AlreadyExists
         let result = keyring_create_with_password("");
         assert!(
-            matches!(result, Err(CommandError::AlreadyExists)),
+            matches!(result, Err(messages::error::CommandError::AlreadyExists)),
             "Should fail when key already exists"
         );
     }

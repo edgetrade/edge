@@ -5,8 +5,11 @@
 
 pub mod create;
 pub mod delete;
+pub mod game;
 pub mod import;
 pub mod list;
+pub mod prove;
+pub mod verification;
 
 mod name;
 
@@ -14,3 +17,4 @@ pub use create::wallet_create;
 pub use delete::wallet_delete;
 pub use import::wallet_import;
 pub use list::wallet_list;
+pub use prove::wallet_prove;

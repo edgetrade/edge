@@ -3,11 +3,10 @@
 //! Checks if a key exists in the OS keyring.
 //! No password prompts - the keyring itself provides the security.
 
-use crate::commands::CommandResult;
 use crate::messages;
 
 /// Unlock keyring - informational message about the session backend.
-pub fn keyring_unlock() -> CommandResult<()> {
+pub fn keyring_unlock() -> messages::success::CommandResult<()> {
     messages::success::keyring_unlock_help();
     Ok(())
 }

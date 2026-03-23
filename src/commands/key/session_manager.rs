@@ -4,7 +4,7 @@
 //! for wallet operations. Automatically handles keyring vs filestore backends.
 
 use crate::commands::key::filestore::storage::{default_blind_user_key_path, default_salt_path};
-use crate::commands::{CommandError, CommandResult};
+use crate::messages;
 use crate::session::{Session, keyring_available};
 
 /// Ensure the session is ready (unlocked) for wallet operations.
@@ -26,7 +26,7 @@ use crate::session::{Session, keyring_available};
 /// - Key creation fails
 /// - Key unlock fails
 /// - Storage operations fail
-pub fn ensure_session_ready(context: &str) -> CommandResult<()> {
+pub fn ensure_session_ready(context: &str) -> messages::success::CommandResult<()> {
     let session = Session::new();
 
     // If already unlocked, nothing to do
@@ -58,11 +58,11 @@ pub fn ensure_session_ready(context: &str) -> CommandResult<()> {
 ///
 /// # Errors
 /// Returns an error if the storage paths cannot be determined.
-fn check_filestore_keys_exist() -> CommandResult<bool> {
+fn check_filestore_keys_exist() -> messages::success::CommandResult<bool> {
     let blind_key_path = default_blind_user_key_path()
-        .ok_or_else(|| CommandError::Storage("Could not determine key path".to_string()))?;
-    let salt_path =
-        default_salt_path().ok_or_else(|| CommandError::Storage("Could not determine salt path".to_string()))?;
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine key path".to_string()))?;
+    let salt_path = default_salt_path()
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine salt path".to_string()))?;
 
     Ok(blind_key_path.exists() && salt_path.exists())
 }

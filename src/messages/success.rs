@@ -1,3 +1,6 @@
+/// Result type for command operations.
+pub type CommandResult<T> = Result<T, super::error::CommandError>;
+
 /// Success: Key already exists (idempotent state)
 pub fn key_exists() {
     println!("Key already exists. You're good to go!");

@@ -59,25 +59,23 @@ pub enum Commands {
         path: String,
     },
     #[command(
-        about = "Manage Edge keys which are used to encrypt the messages and information sent to our servers.\nThese keys are important but they are not your wallet keys.",
-        arg_required_else_help = true
+        about = "Manage Edge keys which are used to encrypt the messages and information sent to our servers.\nThese keys are important but they are not your wallet keys."
     )]
     Key {
         #[command(subcommand)]
-        command: KeyCommand,
+        command: Option<KeyCommand>,
     },
     #[command(
-        about = "Manage Edge wallets that your agent will have access to.\nYour wallet will never be in a position where it will be able to do anything without your approval.",
-        arg_required_else_help = true
+        about = "Manage Edge wallets that your agent will have access to.\nYour wallet will never be in a position where it will be able to do anything without your approval."
     )]
     Wallet {
         #[command(subcommand)]
-        command: WalletCommand,
+        command: Option<WalletCommand>,
     },
-    #[command(about = "Manage Edge's skills", arg_required_else_help = true)]
+    #[command(about = "Manage Edge's skills")]
     Skill {
         #[command(subcommand)]
-        command: SkillCommand,
+        command: Option<SkillCommand>,
     },
     #[command(about = "Print available MCP tools as JSON and exit")]
     ListTools,
@@ -127,6 +125,13 @@ pub enum WalletCommand {
     Delete {
         #[arg(long, help = "Wallet address")]
         address: String,
+    },
+    #[command(about = "Play the prove game to test wallet security constraints")]
+    Prove {
+        #[arg(long, help = "Game to play: 1 (Blind Oracle), 2 (The Vault), or both")]
+        game: Option<u8>,
+        #[arg(long, help = "Replay the last game without creating new intents")]
+        replay: bool,
     },
 }
 

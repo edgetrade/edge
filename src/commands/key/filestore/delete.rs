@@ -6,7 +6,6 @@
 //! - session file
 
 use crate::commands::key::filestore::storage::{default_blind_user_key_path, default_salt_path, delete_session_file};
-use crate::commands::{CommandError, CommandResult};
 use crate::messages;
 
 /// Delete all key-related files from the filesystem.
@@ -23,11 +22,11 @@ use crate::messages;
 /// # Errors
 /// Returns an error if:
 /// - Files cannot be deleted due to permission issues
-pub fn key_delete() -> CommandResult<()> {
+pub fn key_delete() -> messages::success::CommandResult<()> {
     let blind_key_path = default_blind_user_key_path()
-        .ok_or_else(|| CommandError::Storage("Could not determine key path".to_string()))?;
-    let salt_path =
-        default_salt_path().ok_or_else(|| CommandError::Storage("Could not determine salt path".to_string()))?;
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine key path".to_string()))?;
+    let salt_path = default_salt_path()
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine salt path".to_string()))?;
 
     let key_existed = blind_key_path.exists();
     let salt_existed = salt_path.exists();
@@ -35,12 +34,13 @@ pub fn key_delete() -> CommandResult<()> {
     // Delete blind_user_key file if it exists
     if key_existed {
         std::fs::remove_file(&blind_key_path)
-            .map_err(|e| CommandError::Storage(format!("Failed to delete blind_user_key: {}", e)))?;
+            .map_err(|e| messages::error::CommandError::Storage(format!("Failed to delete blind_user_key: {}", e)))?;
     }
 
     // Delete salt file if it exists
     if salt_existed {
-        std::fs::remove_file(&salt_path).map_err(|e| CommandError::Storage(format!("Failed to delete salt: {}", e)))?;
+        std::fs::remove_file(&salt_path)
+            .map_err(|e| messages::error::CommandError::Storage(format!("Failed to delete salt: {}", e)))?;
     }
 
     // Delete session file if it exists (ignore errors - may not exist)

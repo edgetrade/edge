@@ -3,18 +3,16 @@
 //! Implements cryptographically secure wallet generation for EVM
 //! (secp256k1) and Solana (ed25519) chains.
 
+use aes_gcm::aead::rand_core;
 use ed25519_dalek::{SigningKey as SolanaSigningKey, VerifyingKey as SolanaVerifyingKey};
 use k256::ecdsa::{SigningKey as EvmSigningKey, VerifyingKey as EvmVerifyingKey};
 use sha3::{Digest as Sha3Digest, Keccak256};
 
-use tyche_enclave::{
-    envelopes::storage::StorageEnvelope, envelopes::storage::WalletKey, shared::attestation::TransportKeyReceiver,
-    types::chain_type::ChainType,
-};
+use tyche_enclave::{envelopes::storage::StorageEnvelope, envelopes::storage::WalletKey, types::chain_type::ChainType};
 
 use crate::client::IrisClient;
+use crate::client::upsert_encrypted_wallet;
 use crate::session::crypto::UsersEncryptionKeys;
-use crate::wallet::api::upsert_encrypted_wallet;
 
 use super::types::{Wallet, WalletError, WalletResult};
 
@@ -35,19 +33,18 @@ pub async fn create_wallet(
     chain: ChainType,
     name: String,
     user_key: &UsersEncryptionKeys,
-    enclave_keys: Option<&TransportKeyReceiver>,
     client: &IrisClient,
 ) -> WalletResult<Wallet> {
     let wallet = match chain {
         ChainType::EVM => create_evm_wallet(user_key, name)?,
         ChainType::SVM => create_svm_wallet(user_key, name)?,
     };
-    upsert_encrypted_wallet(wallet, user_key, enclave_keys, client).await
+    upsert_encrypted_wallet(wallet, user_key, client).await
 }
 
 fn create_evm_wallet(user_key: &UsersEncryptionKeys, name: String) -> WalletResult<Wallet> {
     // Generate random secp256k1 keypair
-    let signing_key = EvmSigningKey::random(&mut rand::rngs::OsRng);
+    let signing_key = EvmSigningKey::random(&mut rand_core::OsRng);
 
     // Derive Ethereum address: keccak256(public_key)[12..32]
     let verifying_key = EvmVerifyingKey::from(&signing_key);
@@ -76,7 +73,7 @@ fn create_evm_wallet(user_key: &UsersEncryptionKeys, name: String) -> WalletResu
 
 fn create_svm_wallet(user_key: &UsersEncryptionKeys, name: String) -> WalletResult<Wallet> {
     // Generate random ed25519 keypair
-    let signing_key = SolanaSigningKey::generate(&mut rand::rngs::OsRng);
+    let signing_key = SolanaSigningKey::generate(&mut rand_core::OsRng);
 
     // Derive Solana address (base58-encoded public key)
     let verifying_key = SolanaVerifyingKey::from(&signing_key);

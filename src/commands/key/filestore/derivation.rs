@@ -68,7 +68,7 @@ pub fn derive_user_keys(master_key: &MasterKey) -> UsersEncryptionKeys {
 /// Uses the system's cryptographically secure random number generator.
 pub fn generate_salt() -> [u8; SALT_SIZE] {
     let mut salt = [0u8; SALT_SIZE];
-    getrandom::getrandom(&mut salt).expect("System RNG available");
+    getrandom::fill(&mut salt).expect("System RNG available");
     salt
 }
 

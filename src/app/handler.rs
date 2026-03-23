@@ -1,18 +1,20 @@
 use std::process;
 
+use clap::CommandFactory;
 use tyche_enclave::types::chain_type::ChainType;
 
-use crate::app::cli::Commands;
 use crate::commands;
+use crate::commands::serve::mcp::EdgeServer;
 use crate::manifest::McpManifest;
 use crate::messages;
-use crate::server::mcp::EdgeServer;
 use crate::utils::urls::EDGE_MCP_URL;
 
 use super::cli::{Cli, KeyCommand, SkillCommand, WalletCommand};
 use super::{KeyCreateFn, KeyDeleteFn, KeyLockFn, KeyUnlockFn, KeyUpdateFn};
 
 pub async fn handle_server(cli: &Cli, server: EdgeServer) -> Result<(), i32> {
+    use super::cli::Commands;
+
     match &cli.command {
         Some(Commands::Server { host, port, path }) => server.serve_http(host, *port, path).await.map_err(|e| {
             messages::error::mcp_server_error(&e.to_string());
@@ -44,7 +46,7 @@ pub async fn handle_server(cli: &Cli, server: EdgeServer) -> Result<(), i32> {
 }
 
 pub async fn handle_key(
-    command: &KeyCommand,
+    command: &Option<KeyCommand>,
     key_create: KeyCreateFn,
     key_unlock: KeyUnlockFn,
     key_lock: KeyLockFn,
@@ -53,32 +55,39 @@ pub async fn handle_key(
     client: &crate::client::IrisClient,
 ) -> Result<(), i32> {
     match command {
-        KeyCommand::Create => key_create().map_err(|e| {
+        Some(KeyCommand::Create) => key_create().map_err(|e| {
             messages::error::key_command_error("create", &e.to_string());
             1
         }),
-        KeyCommand::Unlock => key_unlock().map_err(|e| {
+        Some(KeyCommand::Unlock) => key_unlock().map_err(|e| {
             messages::error::key_command_error("unlock", &e.to_string());
             1
         }),
-        KeyCommand::Lock => key_lock().map_err(|e| {
+        Some(KeyCommand::Lock) => key_lock().map_err(|e| {
             messages::error::key_command_error("lock", &e.to_string());
             1
         }),
-        KeyCommand::Update => key_update(client).await.map_err(|e| {
+        Some(KeyCommand::Update) => key_update(client).await.map_err(|e| {
             messages::error::key_command_error("update", &e.to_string());
             1
         }),
-        KeyCommand::Delete => key_delete().map_err(|e| {
+        Some(KeyCommand::Delete) => key_delete().map_err(|e| {
             messages::error::key_command_error("delete", &e.to_string());
             1
         }),
+        None => {
+            // Print help when no subcommand is provided
+            let cmd = Cli::command();
+            let sub = cmd.find_subcommand("key").expect("key subcommand exists");
+            println!("{}", sub.clone().render_help());
+            Ok(())
+        }
     }
 }
 
-pub async fn handle_wallet(command: &WalletCommand, client: &crate::client::IrisClient) -> Result<(), i32> {
+pub async fn handle_wallet(command: &Option<WalletCommand>, client: &crate::client::IrisClient) -> Result<(), i32> {
     match command {
-        WalletCommand::Create { chain_type, name } => {
+        Some(WalletCommand::Create { chain_type, name }) => {
             let chain_type = ChainType::parse(chain_type).map_err(|_| {
                 messages::error::invalid_chain_type();
                 1
@@ -90,11 +99,11 @@ pub async fn handle_wallet(command: &WalletCommand, client: &crate::client::Iris
                     1
                 })
         }
-        WalletCommand::Import {
+        Some(WalletCommand::Import {
             chain_type,
             name,
             key_file,
-        } => {
+        }) => {
             let chain_type = ChainType::parse(chain_type).map_err(|_| {
                 messages::error::invalid_chain_type();
                 1
@@ -106,28 +115,43 @@ pub async fn handle_wallet(command: &WalletCommand, client: &crate::client::Iris
                     1
                 })
         }
-        WalletCommand::List => commands::wallet::wallet_list(client).await.map_err(|e| {
+        Some(WalletCommand::List) => commands::wallet::wallet_list(client).await.map_err(|e| {
             messages::error::wallet_command_error("list", &e.to_string());
             1
         }),
-        WalletCommand::Delete { address } => commands::wallet::wallet_delete(address.clone(), client)
+        Some(WalletCommand::Delete { address }) => commands::wallet::wallet_delete(address.clone(), client)
             .await
             .map_err(|e| {
                 messages::error::wallet_command_error("delete", &e.to_string());
                 1
             }),
+        Some(WalletCommand::Prove { game, replay }) => commands::wallet::wallet_prove(*game, *replay, client)
+            .await
+            .map_err(|e| {
+                messages::error::wallet_command_error("prove", &e.to_string());
+                1
+            }),
+        None => {
+            // Print help when no subcommand is provided
+            let cmd = Cli::command();
+            let sub = cmd
+                .find_subcommand("wallet")
+                .expect("wallet subcommand exists");
+            println!("{}", sub.clone().render_help());
+            Ok(())
+        }
     }
 }
 
-pub fn handle_skill(command: &SkillCommand, manifest: &McpManifest) -> Result<(), i32> {
+pub fn handle_skill(command: &Option<SkillCommand>, manifest: &McpManifest) -> Result<(), i32> {
     match command {
-        SkillCommand::List => {
+        Some(SkillCommand::List) => {
             for skill in &manifest.skills {
                 messages::success::skill_output(&skill.name, &skill.description);
             }
             Ok(())
         }
-        SkillCommand::Install { name, path } => match manifest.skills.iter().find(|s| &s.name == name) {
+        Some(SkillCommand::Install { name, path }) => match manifest.skills.iter().find(|s| &s.name == name) {
             Some(skill) => {
                 let dir = std::path::Path::new(path).join(name);
                 if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -146,6 +170,15 @@ pub fn handle_skill(command: &SkillCommand, manifest: &McpManifest) -> Result<()
                 Err(1)
             }
         },
+        None => {
+            // Print help when no subcommand is provided
+            let cmd = Cli::command();
+            let sub = cmd
+                .find_subcommand("skill")
+                .expect("skill subcommand exists");
+            println!("{}", sub.clone().render_help());
+            Ok(())
+        }
     }
 }
 

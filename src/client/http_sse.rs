@@ -86,8 +86,8 @@ struct IrisClientInner {
 pub struct DispatchParams {
     pub alert_id: u64,
     pub alert_name: String,
-    pub delivery: crate::subscriptions::alerts::AlertDelivery,
-    pub alert_registry: crate::subscriptions::alerts::AlertRegistry,
+    pub delivery: crate::commands::subscribe::alerts::AlertDelivery,
+    pub alert_registry: crate::commands::subscribe::alerts::AlertRegistry,
     pub http_client: reqwest::Client,
 }
 
@@ -322,7 +322,8 @@ impl IrisClient {
                 if !alert_registry.lock().await.contains_key(&alert_id) {
                     break;
                 }
-                let _ = crate::subscriptions::alerts::dispatch_event(&delivery, &alert_name, event, &http_client).await;
+                let _ = crate::commands::subscribe::alerts::dispatch_event(&delivery, &alert_name, event, &http_client)
+                    .await;
             }
         });
 

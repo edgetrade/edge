@@ -29,7 +29,7 @@ pub fn encrypt_aes_gcm(plaintext: &[u8], key: &[u8; KEY_SIZE]) -> CryptoResult<E
 
     // Generate random nonce
     let mut nonce_bytes = [0u8; NONCE_SIZE];
-    getrandom::getrandom(&mut nonce_bytes).map_err(|_| CryptoError::EncryptionFailed)?;
+    getrandom::fill(&mut nonce_bytes).map_err(|_| CryptoError::EncryptionFailed)?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // Encrypt

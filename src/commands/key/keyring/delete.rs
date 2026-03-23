@@ -3,7 +3,6 @@
 //! Removes the user encryption key from the OS keyring.
 //! This operation is idempotent - it succeeds even if no key exists.
 
-use crate::commands::{CommandError, CommandResult};
 use crate::messages;
 use crate::session::keyring::{KEYRING_SERVICE, KEYRING_USERNAME};
 
@@ -19,7 +18,7 @@ use crate::session::keyring::{KEYRING_SERVICE, KEYRING_USERNAME};
 /// # Errors
 /// Returns an error if:
 /// - Keyring is inaccessible
-pub fn keyring_delete() -> CommandResult<()> {
+pub fn keyring_delete() -> messages::success::CommandResult<()> {
     let check = rpassword::prompt_password(
         "If you have not saved your password, you WILL lose access to your wallets.\nAre you sure you want to delete? (y/N) ",
     )?;
@@ -42,9 +41,9 @@ pub fn keyring_delete() -> CommandResult<()> {
 /// # Errors
 /// Returns an error if:
 /// - Keyring is inaccessible
-fn keyring_delete_internal() -> CommandResult<()> {
+fn keyring_delete_internal() -> messages::success::CommandResult<()> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USERNAME)
-        .map_err(|e| CommandError::Storage(format!("Failed to access keyring: {}", e)))?;
+        .map_err(|e| messages::error::CommandError::Storage(format!("Failed to access keyring: {}", e)))?;
 
     match entry.delete_credential() {
         Ok(()) => {
@@ -55,7 +54,10 @@ fn keyring_delete_internal() -> CommandResult<()> {
             messages::success::key_config_not_found();
             Ok(())
         }
-        Err(e) => Err(CommandError::Storage(format!("Failed to delete key: {}", e))),
+        Err(e) => Err(messages::error::CommandError::Storage(format!(
+            "Failed to delete key: {}",
+            e
+        ))),
     }
 }
 

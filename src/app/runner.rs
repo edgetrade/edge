@@ -15,9 +15,9 @@ use crate::app::client::parse_api_credentials;
 use crate::app::handler::{handle_key, handle_ping, handle_server, handle_skill, handle_version, handle_wallet};
 use crate::app::{KeyCreateFn, KeyDeleteFn, KeyLockFn, KeyUnlockFn, KeyUpdateFn};
 use crate::client::new_client;
+use crate::commands::serve::mcp::EdgeServer;
 use crate::manifest::{ManifestManager, McpManifest};
 use crate::messages;
-use crate::server::mcp::EdgeServer;
 use crate::session::crypto::UsersEncryptionKeys;
 use crate::session::{Session, SessionError, keyring_available};
 

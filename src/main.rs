@@ -9,17 +9,17 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use clap::Parser;
-use edge_trade::app::cli::Cli;
-use edge_trade::app::runner::run;
-use edge_trade::app::{KeyCreateFn, KeyDeleteFn, KeyLockFn, KeyUnlockFn, KeyUpdateFn};
-use edge_trade::client::IrisClient;
-use edge_trade::commands::CommandResult;
-use edge_trade::config::{set_config_path_override, should_use_keyring};
-use edge_trade::messages;
+use poseidon::app::cli::Cli;
+use poseidon::app::runner::run;
+use poseidon::app::{KeyCreateFn, KeyDeleteFn, KeyLockFn, KeyUnlockFn, KeyUpdateFn};
+use poseidon::client::IrisClient;
+use poseidon::config::{set_config_path_override, should_use_keyring};
+use poseidon::messages;
+use poseidon::messages::success::CommandResult;
 
 /// Keyring-based key command implementations (preferred when available).
 mod keyring {
-    pub use edge_trade::commands::key::keyring::{
+    pub use poseidon::commands::key::keyring::{
         keyring_create as key_create, keyring_delete as key_delete, keyring_lock as key_lock,
         keyring_unlock as key_unlock, keyring_update as key_update,
     };
@@ -27,7 +27,7 @@ mod keyring {
 
 /// File-based key command implementations (fallback when keyring unavailable).
 mod filestore {
-    pub use edge_trade::commands::key::filestore::{key_create, key_delete, key_lock, key_unlock, key_update};
+    pub use poseidon::commands::key::filestore::{key_create, key_delete, key_lock, key_unlock, key_update};
 }
 
 /// Key update function wrapper for keyring variant.

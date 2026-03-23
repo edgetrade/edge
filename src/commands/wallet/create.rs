@@ -6,9 +6,9 @@
 
 use tyche_enclave::types::chain_type::ChainType;
 
-use crate::commands::{CommandError, CommandResult};
 use crate::messages;
 use crate::session::Session;
+use crate::wallet::create::create_wallet;
 
 /// Create a new wallet.
 ///
@@ -28,7 +28,7 @@ pub async fn wallet_create(
     chain: ChainType,
     name: Option<String>,
     client: &crate::client::IrisClient,
-) -> CommandResult<()> {
+) -> messages::success::CommandResult<()> {
     // Step 1: Ensure session is ready
     crate::commands::key::session_manager::ensure_session_ready("wallet")?;
 
@@ -36,8 +36,8 @@ pub async fn wallet_create(
     let session = Session::new();
     let uek = session
         .get_user_encryption_key()
-        .map_err(|e| CommandError::Session(e.to_string()))?
-        .ok_or_else(|| CommandError::Session("Session unavailable".to_string()))?;
+        .map_err(|e| messages::error::CommandError::Session(e.to_string()))?
+        .ok_or_else(|| messages::error::CommandError::Session("Session unavailable".to_string()))?;
 
     // Step 3: Print progress message
     messages::success::wallet_importing();
@@ -45,9 +45,9 @@ pub async fn wallet_create(
     // Step 4: Create the wallet
     let name = super::name::ensure_wallet_name(chain, name);
     // TODO: add enclave keys
-    let wallet = crate::wallet::create::create_wallet(chain, name, &uek, None, client)
+    let wallet = create_wallet(chain, name, &uek, client)
         .await
-        .map_err(CommandError::from)?;
+        .map_err(messages::error::CommandError::from)?;
 
     // Step 5: Print success message
     messages::success::wallet_created(chain.to_string().as_str(), &wallet.address);

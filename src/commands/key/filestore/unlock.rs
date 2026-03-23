@@ -9,7 +9,6 @@ use crate::commands::key::filestore::derivation::{derive_master_key, derive_user
 use crate::commands::key::filestore::storage::{
     default_blind_user_key_path, default_salt_path, load_blind_user_key, load_salt,
 };
-use crate::commands::{CommandError, CommandResult};
 use crate::messages;
 use crate::session::Session;
 
@@ -18,23 +17,23 @@ use crate::session::Session;
 /// Performs the core unlock flow without any user-facing messages.
 /// Returns Ok(true) if already unlocked, Ok(false) if successfully unlocked,
 /// or Err on failure.
-fn key_unlock_internal(session: &Session) -> CommandResult<bool> {
+fn key_unlock_internal(session: &Session) -> messages::success::CommandResult<bool> {
     // Check if already unlocked
     if session.is_unlocked() {
         return Ok(true);
     }
 
     // Get storage paths
-    let salt_path =
-        default_salt_path().ok_or_else(|| CommandError::Storage("Could not determine salt path".to_string()))?;
+    let salt_path = default_salt_path()
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine salt path".to_string()))?;
     let blind_key_path = default_blind_user_key_path()
-        .ok_or_else(|| CommandError::Storage("Could not determine key path".to_string()))?;
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine key path".to_string()))?;
 
     // Load salt from storage
-    let salt_bytes = load_salt(&salt_path).map_err(|e| CommandError::Storage(e.to_string()))?;
+    let salt_bytes = load_salt(&salt_path).map_err(|e| messages::error::CommandError::Storage(e.to_string()))?;
 
     if salt_bytes.len() != 16 {
-        return Err(CommandError::Crypto(format!(
+        return Err(messages::error::CommandError::Crypto(format!(
             "Invalid salt size: expected 16, got {}",
             salt_bytes.len()
         )));
@@ -44,28 +43,31 @@ fn key_unlock_internal(session: &Session) -> CommandResult<bool> {
     salt.copy_from_slice(&salt_bytes);
 
     // Prompt for password
-    let password = prompt_password("Enter password: ").map_err(|e| CommandError::Authentication(e.to_string()))?;
+    let password = prompt_password("Enter password: ")
+        .map_err(|e| messages::error::CommandError::Authentication(e.to_string()))?;
 
     // Derive master key from password + salt
-    let master_key = derive_master_key(&password, &salt).map_err(|e| CommandError::Crypto(e.to_string()))?;
+    let master_key =
+        derive_master_key(&password, &salt).map_err(|e| messages::error::CommandError::Crypto(e.to_string()))?;
 
     // Derive KWK from master key (we only need KWK for unwrapping)
     let user_keys = derive_user_keys(&master_key);
 
     // Load blind_user_key from disk
-    let blind_key_bytes = load_blind_user_key(&blind_key_path).map_err(|e| CommandError::Storage(e.to_string()))?;
+    let blind_key_bytes =
+        load_blind_user_key(&blind_key_path).map_err(|e| messages::error::CommandError::Storage(e.to_string()))?;
 
     let blind_user_key = EncryptedData::from_bytes(&blind_key_bytes)
-        .ok_or_else(|| CommandError::Crypto("Invalid blind_user_key format".to_string()))?;
+        .ok_or_else(|| messages::error::CommandError::Crypto("Invalid blind_user_key format".to_string()))?;
 
     // Unwrap to get UEK - this will fail if password is wrong
     let uek = unwrap_user_encryption_key(&blind_user_key, &user_keys.meta.unwrap())
-        .map_err(|_| CommandError::Authentication("Invalid password".to_string()))?;
+        .map_err(|_| messages::error::CommandError::Authentication("Invalid password".to_string()))?;
 
     // Store UEK in session (keyring or file)
     session
         .unlock(&uek)
-        .map_err(|e| CommandError::Storage(e.to_string()))?;
+        .map_err(|e| messages::error::CommandError::Storage(e.to_string()))?;
 
     Ok(false)
 }
@@ -89,7 +91,7 @@ fn key_unlock_internal(session: &Session) -> CommandResult<bool> {
 /// - Password is incorrect
 /// - Key derivation fails
 /// - Decryption fails
-pub fn key_unlock() -> CommandResult<()> {
+pub fn key_unlock() -> messages::success::CommandResult<()> {
     let session = Session::new();
 
     match key_unlock_internal(&session)? {
@@ -120,7 +122,7 @@ pub fn key_unlock() -> CommandResult<()> {
 /// - Password is incorrect
 /// - Key derivation fails
 /// - Decryption fails
-pub fn key_unlock_with_context(context: &str) -> CommandResult<()> {
+pub fn key_unlock_with_context(context: &str) -> messages::success::CommandResult<()> {
     let session = Session::new();
 
     if context == "wallet" {

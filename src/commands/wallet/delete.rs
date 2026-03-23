@@ -3,9 +3,8 @@
 //! Deletes a wallet for the specified chain type (EVM or SVM).
 
 use crate::client::IrisClient;
-use crate::commands::CommandResult;
+use crate::client::delete_wallet;
 use crate::messages;
-use crate::wallet::api::delete_wallet;
 
 /// Delete a wallet for the specified chain.
 ///
@@ -22,7 +21,7 @@ use crate::wallet::api::delete_wallet;
 /// - API key is not provided
 /// - Chain type is invalid
 /// - API request fails
-pub async fn wallet_delete(address: String, client: &IrisClient) -> CommandResult<()> {
+pub async fn wallet_delete(address: String, client: &IrisClient) -> messages::success::CommandResult<()> {
     delete_wallet(address.clone(), client).await?;
     messages::success::wallet_deleted(&address);
     Ok(())

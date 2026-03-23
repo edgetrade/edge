@@ -6,9 +6,7 @@ pub mod commands;
 pub mod config;
 pub mod manifest;
 pub mod messages;
-pub mod server;
 pub mod session;
-pub mod subscriptions;
 pub mod utils;
 pub mod wallet;
 

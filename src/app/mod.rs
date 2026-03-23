@@ -7,7 +7,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use crate::client::IrisClient;
-use crate::commands::CommandResult;
+use crate::messages::success::CommandResult;
 
 /// Key command function type.
 pub type KeyCreateFn = fn() -> CommandResult<()>;

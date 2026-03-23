@@ -3,6 +3,8 @@
 //! Implements interactive setup for new users, generating salt,
 //! deriving keys, and storing the blind_user_key.
 
+use std::path::PathBuf;
+
 use crate::commands::key::filestore::auth::password::prompt_password;
 use crate::commands::key::filestore::crypto::encryption::wrap_user_encryption_key;
 use crate::commands::key::filestore::derivation::{derive_master_key, derive_user_keys, generate_salt};
@@ -10,9 +12,7 @@ use crate::commands::key::filestore::storage::{
     default_blind_user_key_path, default_salt_path, default_storage_dir, ensure_storage_dir, store_blind_user_key,
     store_salt,
 };
-use crate::commands::{CommandError, CommandResult};
 use crate::messages;
-use std::path::PathBuf;
 
 /// Internal function containing the common key creation logic.
 ///
@@ -33,47 +33,53 @@ use std::path::PathBuf;
 /// - Password confirmation fails
 /// - Key derivation fails
 /// - Storage operations fail
-fn key_create_internal() -> CommandResult<PathBuf> {
+fn key_create_internal() -> messages::success::CommandResult<PathBuf> {
     // Check if keys already exist
     if check_keys_exist()? {
-        return Err(CommandError::AlreadyExists);
+        return Err(messages::error::CommandError::AlreadyExists);
     }
 
     // Ensure storage directory exists
-    let storage_dir =
-        default_storage_dir().ok_or_else(|| CommandError::Storage("Could not determine home directory".to_string()))?;
-    ensure_storage_dir(&storage_dir).map_err(|e| CommandError::Storage(e.to_string()))?;
+    let storage_dir = default_storage_dir()
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine home directory".to_string()))?;
+    ensure_storage_dir(&storage_dir).map_err(|e| messages::error::CommandError::Storage(e.to_string()))?;
 
     // Prompt for password and confirmation
-    let password = prompt_password("Create password: ").map_err(|e| CommandError::Authentication(e.to_string()))?;
-    let confirm = prompt_password("Confirm password: ").map_err(|e| CommandError::Authentication(e.to_string()))?;
+    let password = prompt_password("Create password: ")
+        .map_err(|e| messages::error::CommandError::Authentication(e.to_string()))?;
+    let confirm = prompt_password("Confirm password: ")
+        .map_err(|e| messages::error::CommandError::Authentication(e.to_string()))?;
 
     if password != confirm {
-        return Err(CommandError::InvalidInput("Passwords do not match".to_string()));
+        return Err(messages::error::CommandError::InvalidInput(
+            "Passwords do not match".to_string(),
+        ));
     }
 
     // Generate random salt
     let salt = generate_salt();
 
     // Derive master key from password + salt
-    let master_key = derive_master_key(&password, &salt).map_err(|e| CommandError::Crypto(e.to_string()))?;
+    let master_key =
+        derive_master_key(&password, &salt).map_err(|e| messages::error::CommandError::Crypto(e.to_string()))?;
 
     // Derive UEK and KWK from master key
     let user_keys = derive_user_keys(&master_key);
 
     // Wrap UEK with KWK to create blind_user_key
-    let blind_user_key = wrap_user_encryption_key(&user_keys).map_err(|e| CommandError::Crypto(e.to_string()))?;
+    let blind_user_key =
+        wrap_user_encryption_key(&user_keys).map_err(|e| messages::error::CommandError::Crypto(e.to_string()))?;
 
     // Get storage paths
     let blind_key_path = default_blind_user_key_path()
-        .ok_or_else(|| CommandError::Storage("Could not determine key path".to_string()))?;
-    let salt_path =
-        default_salt_path().ok_or_else(|| CommandError::Storage("Could not determine salt path".to_string()))?;
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine key path".to_string()))?;
+    let salt_path = default_salt_path()
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine salt path".to_string()))?;
 
     // Store blind_user_key and salt
     store_blind_user_key(&blind_key_path, &blind_user_key.to_bytes())
-        .map_err(|e| CommandError::Storage(e.to_string()))?;
-    store_salt(&salt_path, &salt).map_err(|e| CommandError::Storage(e.to_string()))?;
+        .map_err(|e| messages::error::CommandError::Storage(e.to_string()))?;
+    store_salt(&salt_path, &salt).map_err(|e| messages::error::CommandError::Storage(e.to_string()))?;
 
     Ok(storage_dir)
 }
@@ -95,7 +101,7 @@ fn key_create_internal() -> CommandResult<PathBuf> {
 /// - Password confirmation fails
 /// - Key derivation fails
 /// - Storage operations fail
-pub fn key_create() -> CommandResult<()> {
+pub fn key_create() -> messages::success::CommandResult<()> {
     let storage_dir = key_create_internal()?;
 
     // Print success message (never print keys)
@@ -123,7 +129,7 @@ pub fn key_create() -> CommandResult<()> {
 /// - Password confirmation fails
 /// - Key derivation fails
 /// - Storage operations fail
-pub fn key_create_with_context(context: &str) -> CommandResult<()> {
+pub fn key_create_with_context(context: &str) -> messages::success::CommandResult<()> {
     // Show custom intro for wallet context
     if context == "wallet" {
         messages::success::key_created();
@@ -146,11 +152,11 @@ pub fn key_create_with_context(context: &str) -> CommandResult<()> {
 /// Check if keys already exist on the filesystem.
 ///
 /// Returns `true` if both blind_user_key and salt exist.
-fn check_keys_exist() -> CommandResult<bool> {
+fn check_keys_exist() -> messages::success::CommandResult<bool> {
     let blind_key_path = default_blind_user_key_path()
-        .ok_or_else(|| CommandError::Storage("Could not determine key path".to_string()))?;
-    let salt_path =
-        default_salt_path().ok_or_else(|| CommandError::Storage("Could not determine salt path".to_string()))?;
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine key path".to_string()))?;
+    let salt_path = default_salt_path()
+        .ok_or_else(|| messages::error::CommandError::Storage("Could not determine salt path".to_string()))?;
 
     Ok(blind_key_path.exists() && salt_path.exists())
 }
