@@ -9,13 +9,18 @@
 //! - Game 2: The Vault (test password-based encryption)
 
 use crate::client::IrisClient;
-use crate::commands::wallet::game::game_state::load_game_state;
-use crate::commands::wallet::game::verification::{
-    display_verification_summary, format_game_results, maybe_write_verification_instructions, prompt_replay,
-};
 use crate::messages;
+use crate::session::Session;
 
-use super::game;
+use super::game::{
+    envelope_game,
+    game_state::load_game_state,
+    intents_game,
+    utils::prompt_user,
+    verification::{
+        display_verification_summary, format_game_results, maybe_write_verification_instructions, prompt_replay,
+    },
+};
 
 /// Play the prove game.
 ///
@@ -47,6 +52,11 @@ pub async fn wallet_prove(game: Option<u8>, replay: bool, client: &IrisClient) -
         }
     }
 
+    let user_key = Session::new()
+        .get_user_encryption_key()
+        .map_err(|e| messages::error::CommandError::Session(e.to_string()))?
+        .ok_or_else(|| messages::error::CommandError::Session("Session unavailable".to_string()))?;
+
     // Determine which game to play
     let game_choice = match game {
         Some(1) => 1u8,
@@ -62,44 +72,44 @@ pub async fn wallet_prove(game: Option<u8>, replay: bool, client: &IrisClient) -
     match game_choice {
         1 => {
             println!("\n--- Game 1: The Blind Oracle ---\n");
-            game::intents_game::play_game(replay, client).await?;
+            intents_game::play_game(replay, &user_key, client).await?;
 
             // After Game 1, prompt for replay
             if !replay && prompt_replay(1)? {
                 println!("\n--- Replaying Game 1 ---\n");
-                game::intents_game::play_game(true, client).await?;
+                intents_game::play_game(true, &user_key, client).await?;
             }
         }
         2 => {
             println!("\n--- Game 2: The Vault ---\n");
-            game::envelope_game::play_game(replay, client).await?;
+            envelope_game::play_game(replay, &user_key, client).await?;
 
             // After Game 2, prompt for replay
             if !replay && prompt_replay(2)? {
                 println!("\n--- Replaying Game 2 ---\n");
-                game::envelope_game::play_game(true, client).await?;
+                envelope_game::play_game(true, &user_key, client).await?;
             }
         }
         3 => {
             // Play both games in sequence
             println!("\n--- Game 1: The Blind Oracle ---\n");
-            game::intents_game::play_game(replay, client).await?;
+            intents_game::play_game(replay, &user_key, client).await?;
 
             // Prompt for replay after Game 1
             let replay_game1 = if !replay { prompt_replay(1)? } else { false };
             if replay_game1 {
                 println!("\n--- Replaying Game 1 ---\n");
-                game::intents_game::play_game(true, client).await?;
+                intents_game::play_game(true, &user_key, client).await?;
             }
 
             println!("\n--- Game 2: The Vault ---\n");
-            game::envelope_game::play_game(replay, client).await?;
+            envelope_game::play_game(replay, &user_key, client).await?;
 
             // Prompt for replay after Game 2
             let replay_game2 = if !replay { prompt_replay(2)? } else { false };
             if replay_game2 {
                 println!("\n--- Replaying Game 2 ---\n");
-                game::envelope_game::play_game(true, client).await?;
+                envelope_game::play_game(true, &user_key, client).await?;
             }
         }
         _ => {
@@ -129,7 +139,7 @@ fn show_game_menu() -> messages::success::CommandResult<u8> {
     println!("  2. The Vault - Test password-based encryption");
     println!("  3. Play both games\n");
 
-    let choice = rpassword::prompt_password("Enter your choice (1, 2, or 3): ")
+    let choice = prompt_user("Enter your choice (1, 2, or 3): ")
         .map_err(|e| messages::error::CommandError::Io(e.to_string()))?;
 
     match choice.trim() {
@@ -141,35 +151,4 @@ fn show_game_menu() -> messages::success::CommandResult<u8> {
             Ok(1)
         }
     }
-}
-
-/// Generate a unique session ID for the prove game.
-pub fn generate_session_id() -> String {
-    use uuid::Uuid;
-    format!(
-        "prove-game-{}",
-        Uuid::new_v4()
-            .to_string()
-            .split('-')
-            .next()
-            .unwrap_or("session")
-    )
-}
-
-/// Prompt the user for input.
-pub fn prompt_user(message: &str) -> messages::success::CommandResult<String> {
-    println!("{}", message);
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .map_err(|e| messages::error::CommandError::Io(e.to_string()))?;
-    Ok(input.trim().to_string())
-}
-
-/// Prompt the user for a number.
-pub fn prompt_number(message: &str) -> messages::success::CommandResult<u64> {
-    let input = prompt_user(message)?;
-    input
-        .parse::<u64>()
-        .map_err(|_| messages::error::CommandError::InvalidInput("Please enter a valid number".to_string()))
 }

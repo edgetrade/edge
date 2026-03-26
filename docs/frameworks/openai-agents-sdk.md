@@ -16,7 +16,7 @@ async with MCPServerStdio(command="edge", args=["--api-key", "sk-..."]) as mcp:
 # Option B: hosted (OpenAI calls the server)
 agent = Agent(name="Trader", tools=[HostedMCPTool(tool_config={
     "type": "mcp", "server_label": "edge",
-    "server_url": "https://mcp.edge.trade/mcp",
+    "server_url": "https://decerver.edge.trade/mcp",
     "headers": { "Authorization": "Bearer sk-..." }
 })])
 ```

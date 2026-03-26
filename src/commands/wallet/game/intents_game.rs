@@ -4,25 +4,30 @@
 //! The enclave will only grant wallet access if the test value matches one
 //! of the 3 constraint values. This demonstrates constraint-based wallet access.
 
+use core::f64;
+
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use tyche_enclave::envelopes::storage::WalletKey;
+use tyche_enclave::types::chain_type::ChainType;
 use uuid::Uuid;
 
+use tyche_enclave::envelopes::storage::StorageEnvelope;
 use tyche_enclave::envelopes::transport::{ExecutionPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey};
 
-use crate::client::IrisClient;
-use crate::commands::wallet::{
-    game::{
-        game_state::{
-            GameResultEntry, GameWallet, get_sealed_intents, load_game_state, store_game_result, store_sealed_intent,
-        },
-        verification,
-    },
-    proof::{generate_session_id, prompt_number},
-};
+use crate::client::{IrisClient, proof_game};
 use crate::generated::routes::requests::agent_proof_game::ProofGameRequestOrdersItem;
 use crate::messages;
+use crate::session::crypto::UsersEncryptionKeys;
 use crate::session::transport::get_transport_key;
+
+use super::{
+    game_state::{
+        GameResultEntry, GameWallet, get_sealed_intents, load_game_state, store_game_result, store_sealed_intent,
+    },
+    utils::{generate_session_id, prompt_number},
+    verification,
+};
 
 /// Play Game 1: The Blind Oracle.
 ///
@@ -37,7 +42,11 @@ use crate::session::transport::get_transport_key;
 /// # Arguments
 /// * `replay` - If true, use existing sealed intents instead of creating new ones
 /// * `client` - The Iris API client
-pub async fn play_game(replay: bool, client: &IrisClient) -> messages::success::CommandResult<()> {
+pub async fn play_game(
+    replay: bool,
+    user_key: &UsersEncryptionKeys,
+    client: &IrisClient,
+) -> messages::success::CommandResult<()> {
     let session_id = generate_session_id();
     println!("Session ID: {}\n", session_id);
 
@@ -49,7 +58,7 @@ pub async fn play_game(replay: bool, client: &IrisClient) -> messages::success::
     let intents = if replay {
         load_existing_intents(&wallet)?
     } else {
-        create_new_intents(&wallet, client).await?
+        create_new_intents(&wallet, user_key, client).await?
     };
 
     if intents.is_empty() {
@@ -68,7 +77,15 @@ pub async fn play_game(replay: bool, client: &IrisClient) -> messages::success::
     // Step 5: Call proof_game
     println!("Sending {} intents to the enclave...\n", prove_intents.len());
 
-    let response = super::proof_game_with_intents(session_id.clone(), prove_intents, client)
+    let encrypted_wallet_blob = WalletKey::new(
+        ChainType::EVM,
+        wallet.address.clone(),
+        wallet.private_key.clone().into_bytes().to_vec(),
+    )
+    .seal(&user_key.storage)
+    .map_err(|e| messages::error::CommandError::Wallet(e.to_string()))?;
+
+    let response = proof_game(wallet.address.clone(), encrypted_wallet_blob, prove_intents, client)
         .await
         .map_err(|e| messages::error::CommandError::Wallet(e.to_string()))?;
 
@@ -89,6 +106,7 @@ pub async fn play_game(replay: bool, client: &IrisClient) -> messages::success::
 /// Create new sealed intents for Game 1.
 async fn create_new_intents(
     wallet: &GameWallet,
+    user_key: &UsersEncryptionKeys,
     client: &IrisClient,
 ) -> messages::success::CommandResult<Vec<ProofGameRequestOrdersItem>> {
     println!("Creating new sealed intents...\n");
@@ -122,11 +140,8 @@ async fn create_new_intents(
             value: constraint.to_string(),
         };
 
-        // Create execution payload with game key
-        let game_key = [0u8; 32];
-        let payload = ExecutionPayload::new(game_key, sealed_intent);
-
         // Seal the payload
+        let payload = ExecutionPayload::new(user_key.storage, sealed_intent);
         let envelope = payload
             .seal(&key)
             .map_err(|e| messages::error::CommandError::Wallet(e.to_string()))?;
@@ -287,7 +302,7 @@ mod tests {
     use crate::commands::wallet::game::game_state::{
         GameResultEntry, GameWallet, set_test_game_state_path, store_sealed_intent,
     };
-    use crate::commands::wallet::proof::generate_session_id;
+    use crate::commands::wallet::game::utils::generate_session_id;
 
     fn setup_test_env() -> tempfile::TempDir {
         let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");

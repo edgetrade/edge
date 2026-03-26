@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::messages::{self, IrisClientError};
 
-use super::subscription::IrisClientInner;
+use super::subscribe::IrisClientInner;
 use super::trpc::{IrisClient, Route, RouteType};
 
 /// Trait for executing typed routes via the HTTP transport.

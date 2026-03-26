@@ -10,24 +10,27 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use hkdf::Hkdf;
 use sha2::Sha256;
+use tyche_enclave::envelopes::storage::WalletKey;
+use tyche_enclave::types::chain_type::ChainType;
 use uuid::Uuid;
 
+use tyche_enclave::envelopes::storage::StorageEnvelope;
 use tyche_enclave::envelopes::transport::{ExecutionPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey};
 
-use crate::client::IrisClient;
-use crate::commands::wallet::{
-    game::{
-        game_state::{
-            GameResultEntry, GameWallet, get_derived_key, get_encrypted_blob, load_game_state, store_derived_key,
-            store_encrypted_blob, store_game_result,
-        },
-        verification,
-    },
-    proof::{generate_session_id, prompt_user},
-};
+use crate::client::proof_game;
 use crate::generated::routes::requests::agent_proof_game::ProofGameRequestOrdersItem;
 use crate::messages;
 use crate::session::transport::get_transport_key;
+use crate::{client::IrisClient, session::crypto::UsersEncryptionKeys};
+
+use super::{
+    game_state::{
+        GameResultEntry, GameWallet, get_derived_key, get_encrypted_blob, load_game_state, store_derived_key,
+        store_encrypted_blob, store_game_result,
+    },
+    utils::{generate_session_id, prompt_user},
+    verification,
+};
 
 /// Play Game 2: The Vault.
 ///
@@ -44,7 +47,11 @@ use crate::session::transport::get_transport_key;
 /// # Arguments
 /// * `replay` - If true, use existing passwords/keys instead of prompting
 /// * `client` - The Iris API client
-pub async fn play_game(replay: bool, client: &IrisClient) -> messages::success::CommandResult<()> {
+pub async fn play_game(
+    replay: bool,
+    user_key: &UsersEncryptionKeys,
+    client: &IrisClient,
+) -> messages::success::CommandResult<()> {
     let session_id = generate_session_id();
     println!("Session ID: {}\n", session_id);
 
@@ -96,7 +103,15 @@ pub async fn play_game(replay: bool, client: &IrisClient) -> messages::success::
     // Step 7: Call proof_game
     println!("Sending vault unlock attempts to the enclave...\n");
 
-    let response = super::proof_game_with_intents(session_id.clone(), intents, client)
+    let encrypted_wallet_blob = WalletKey::new(
+        ChainType::EVM,
+        wallet.address.clone(),
+        wallet.private_key.clone().into_bytes().to_vec(),
+    )
+    .seal(&user_key.storage)
+    .map_err(|e| messages::error::CommandError::Wallet(e.to_string()))?;
+
+    let response = proof_game(wallet.address.clone(), encrypted_wallet_blob, intents, client)
         .await
         .map_err(|e| messages::error::CommandError::Wallet(e.to_string()))?;
 

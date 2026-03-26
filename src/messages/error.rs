@@ -185,11 +185,6 @@ pub fn connection_failed(err: &str) {
     eprintln!("Failed to connect to Edge servers: {}", err);
 }
 
-/// Prints connection failed message (for two-argument verbose logging)
-pub fn connection_failed_url_key(url: &str, _key: &str) {
-    eprintln!("[edge] connecting to {}", url);
-}
-
 /// Prints query error message
 pub fn query_error(path: &str, err: &str) {
     eprintln!("[edge] ✗ {} (query/mutation): {}", path, err);

@@ -9,7 +9,7 @@ pub use routes::{
     delete_wallet, list_wallets, proof_game, rotate_user_encryption_key, upsert_encrypted_wallet, upsert_wallet,
 };
 
-mod subscription;
-pub use subscription::{DispatchParams, IrisClientInner, subscribe, subscribe_for_dispatch, unsubscribe};
+mod subscribe;
+pub use subscribe::{DispatchParams, IrisClientInner, subscribe, subscribe_for_dispatch, unsubscribe};
 
 pub use crate::messages::IrisClientError;

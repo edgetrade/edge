@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::executor::{mutation, ping, query};
-use super::subscription::{DispatchParams, IrisClientInner, subscribe, subscribe_for_dispatch, unsubscribe};
+use super::subscribe::{DispatchParams, IrisClientInner, subscribe, subscribe_for_dispatch, unsubscribe};
 use crate::messages::{self, IrisClientError};
 
 #[derive(Debug, Clone, Copy)]
@@ -34,14 +34,9 @@ impl IrisClient {
             .replace("wss://", "https://")
             .replace("ws://", "http://");
 
-        if verbose {
-            messages::error::connection_failed_url_key(&base_url, api_key);
-        }
-
         let http = reqwest::Client::new();
-
         if verbose {
-            messages::success::connection_succeeded();
+            messages::success::connecting_to_url(&base_url);
         }
 
         Ok(Self {

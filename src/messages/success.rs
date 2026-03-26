@@ -171,9 +171,9 @@ pub fn query_request(path: &str, input: &str) {
     println!("Query request: {}\tinput={}", path, input);
 }
 
-/// Success: Connection succeeded
-pub fn connection_succeeded() {
-    println!("Connection succeeded");
+/// Success: Connection URL and key (for two-argument verbose logging)
+pub fn connecting_to_url(url: &str) {
+    println!("[edge] connecting to {}", url);
 }
 
 /// Success/Info: Skill output
