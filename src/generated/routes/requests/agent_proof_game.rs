@@ -50,45 +50,51 @@ pub mod error {
 ///  "type": "object",
 ///  "required": [
 ///    "chain_id",
-///    "encrypted_wallet_blob",
 ///    "orders",
 ///    "unsigned_tx",
-///    "wallet_address",
-///    "wallet_envelope"
+///    "wallet_address"
 ///  ],
 ///  "properties": {
 ///    "chain_id": {
 ///      "type": "string"
-///    },
-///    "encrypted_wallet_blob": {
-///      "type": "string",
-///      "format": "base64",
-///      "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
-///      "contentEncoding": "base64"
 ///    },
 ///    "orders": {
 ///      "type": "array",
 ///      "items": {
 ///        "type": "object",
 ///        "required": [
+///          "intent_envelope",
 ///          "order_id",
-///          "sealed_envelope",
-///          "value"
+///          "value",
+///          "wallet_storage_envelope",
+///          "wallet_transport_envelope"
 ///        ],
 ///        "properties": {
-///          "order_id": {
-///            "type": "string",
-///            "format": "uuid",
-///            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-///          },
-///          "sealed_envelope": {
+///          "intent_envelope": {
 ///            "type": "string",
 ///            "format": "base64",
 ///            "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
 ///            "contentEncoding": "base64"
 ///          },
+///          "order_id": {
+///            "type": "string",
+///            "format": "uuid",
+///            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+///          },
 ///          "value": {
 ///            "type": "number"
+///          },
+///          "wallet_storage_envelope": {
+///            "type": "string",
+///            "format": "base64",
+///            "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+///            "contentEncoding": "base64"
+///          },
+///          "wallet_transport_envelope": {
+///            "type": "string",
+///            "format": "base64",
+///            "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+///            "contentEncoding": "base64"
 ///          }
 ///        }
 ///      }
@@ -98,12 +104,6 @@ pub mod error {
 ///    },
 ///    "wallet_address": {
 ///      "type": "string"
-///    },
-///    "wallet_envelope": {
-///      "type": "string",
-///      "format": "base64",
-///      "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
-///      "contentEncoding": "base64"
 ///    }
 ///  }
 ///}
@@ -112,11 +112,9 @@ pub mod error {
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ProofGameRequest {
     pub chain_id: ::std::string::String,
-    pub encrypted_wallet_blob: ::std::string::String,
     pub orders: ::std::vec::Vec<ProofGameRequestOrdersItem>,
     pub unsigned_tx: ::std::string::String,
     pub wallet_address: ::std::string::String,
-    pub wallet_envelope: ::std::string::String,
 }
 ///`ProofGameRequestOrdersItem`
 ///
@@ -126,24 +124,38 @@ pub struct ProofGameRequest {
 ///{
 ///  "type": "object",
 ///  "required": [
+///    "intent_envelope",
 ///    "order_id",
-///    "sealed_envelope",
-///    "value"
+///    "value",
+///    "wallet_storage_envelope",
+///    "wallet_transport_envelope"
 ///  ],
 ///  "properties": {
-///    "order_id": {
-///      "type": "string",
-///      "format": "uuid",
-///      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-///    },
-///    "sealed_envelope": {
+///    "intent_envelope": {
 ///      "type": "string",
 ///      "format": "base64",
 ///      "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
 ///      "contentEncoding": "base64"
 ///    },
+///    "order_id": {
+///      "type": "string",
+///      "format": "uuid",
+///      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+///    },
 ///    "value": {
 ///      "type": "number"
+///    },
+///    "wallet_storage_envelope": {
+///      "type": "string",
+///      "format": "base64",
+///      "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+///      "contentEncoding": "base64"
+///    },
+///    "wallet_transport_envelope": {
+///      "type": "string",
+///      "format": "base64",
+///      "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+///      "contentEncoding": "base64"
 ///    }
 ///  }
 ///}
@@ -151,9 +163,11 @@ pub struct ProofGameRequest {
 /// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 pub struct ProofGameRequestOrdersItem {
+    pub intent_envelope: ::std::string::String,
     pub order_id: ::uuid::Uuid,
-    pub sealed_envelope: ::std::string::String,
     pub value: f64,
+    pub wallet_storage_envelope: ::std::string::String,
+    pub wallet_transport_envelope: ::std::string::String,
 }
 ///`ProofGameResponse`
 ///

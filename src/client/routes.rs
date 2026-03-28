@@ -1,6 +1,5 @@
 //! Type-safe domain functions bridging domain types with generated route types.
 
-use alloy::hex::encode_prefixed;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
@@ -10,9 +9,7 @@ use tyche_enclave::envelopes::transport::{
 use tyche_enclave::types::chain_type::ChainType;
 
 use crate::client::RouteExecutor;
-use crate::generated::routes::requests::agent_proof_game::{
-    self, ProofGameRequest, ProofGameRequestOrdersItem, ProofGameResponse,
-};
+use crate::generated::routes::requests::agent_proof_game::{self, ProofGameRequest, ProofGameResponse};
 use crate::generated::routes::requests::{
     agent_create_encrypted_wallet, agent_delete_encrypted_wallet, agent_list_encrypted_wallets,
     agent_rotate_user_encryption_key,
@@ -112,32 +109,34 @@ pub async fn rotate_user_encryption_key(
 
 /// Conduct the proof game.
 pub async fn proof_game(
-    wallet_address: String,
-    encrypted_pvt_key: Vec<u8>,
-    unsigned_tx: Vec<u8>,
-    orders: Vec<ProofGameRequestOrdersItem>,
-    user_key: &UsersEncryptionKeys,
+    // wallet_address: String,
+    // wallet_unseal_envelope: Vec<u8>,
+    // encrypted_pvt_key: Vec<u8>,
+    // unsigned_tx: Vec<u8>,
+    // orders: Vec<ProofGameRequestOrdersItem>,
+    // user_key: &UsersEncryptionKeys,
+    request: &ProofGameRequest,
     client: &impl RouteExecutor,
 ) -> WalletResult<ProofGameResponse> {
-    let enclave_keys = get_transport_key(client).await?;
-    let key = TransportEnvelopeKey::Unsealing(enclave_keys.deterministic);
+    // let enclave_keys = get_transport_key(client).await?;
+    // let key = TransportEnvelopeKey::Unsealing(enclave_keys.deterministic);
 
-    let encrypted_wallet_blob = WalletUpsert::new(encrypted_pvt_key)
-        .seal(&key)
-        .map_err(|e| WalletError::InvalidPrivateKey(e.to_string()))?;
+    // let encrypted_wallet_blob = WalletUpsert::new(encrypted_pvt_key)
+    //     .seal(&key)
+    //     .map_err(|e| WalletError::InvalidPrivateKey(e.to_string()))?;
 
-    let envelope = RotateUserKeyPayload::new(user_key.storage, None)
-        .seal(&key)
-        .map_err(|e| WalletError::InvalidPrivateKey(e.to_string()))?;
+    // let envelope = RotateUserKeyPayload::new(user_key.storage, None)
+    //     .seal(&key)
+    //     .map_err(|e| WalletError::InvalidPrivateKey(e.to_string()))?;
 
-    let request = &ProofGameRequest {
-        chain_id: erato::models::ChainId::ETHEREUM.to_string(),
-        wallet_address,
-        unsigned_tx: encode_prefixed(&unsigned_tx),
-        wallet_envelope: STANDARD.encode(&envelope),
-        encrypted_wallet_blob: STANDARD.encode(&encrypted_wallet_blob),
-        orders,
-    };
+    // let request = &ProofGameRequest {
+    //     chain_id: erato::models::ChainId::ETHEREUM.to_string(),
+    //     wallet_address,
+    //     unsigned_tx: encode_prefixed(&unsigned_tx),
+    //     wallet_envelope: STANDARD.encode(&envelope),
+    //     encrypted_wallet_blob: STANDARD.encode(&encrypted_wallet_blob),
+    //     orders,
+    // };
 
     client
         .execute(&agent_proof_game::ROUTE, request)

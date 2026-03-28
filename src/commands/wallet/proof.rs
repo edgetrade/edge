@@ -87,12 +87,12 @@ pub async fn wallet_prove(
         }
         2 => {
             println!("\n--- Game 2: The Vault ---\n");
-            envelope_game::play_game(replay, &user_key, session, client).await?;
+            envelope_game::play_game(replay, session, client).await?;
 
             // After Game 2, prompt for replay
             if !replay && prompt_replay(2)? {
                 println!("\n--- Replaying Game 2 ---\n");
-                envelope_game::play_game(true, &user_key, session, client).await?;
+                envelope_game::play_game(true, session, client).await?;
             }
         }
         3 => {
@@ -108,13 +108,13 @@ pub async fn wallet_prove(
             }
 
             println!("\n--- Game 2: The Vault ---\n");
-            envelope_game::play_game(replay, &user_key, session, client).await?;
+            envelope_game::play_game(replay, session, client).await?;
 
             // Prompt for replay after Game 2
             let replay_game2 = if !replay { prompt_replay(2)? } else { false };
             if replay_game2 {
                 println!("\n--- Replaying Game 2 ---\n");
-                envelope_game::play_game(true, &user_key, session, client).await?;
+                envelope_game::play_game(true, session, client).await?;
             }
         }
         _ => {
