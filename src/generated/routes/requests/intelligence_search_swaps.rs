@@ -86,14 +86,16 @@ pub struct SearchSwapsRequest {
     #[serde(rename = "txHash")]
     pub tx_hash: ::std::string::String,
 }
-///`SearchSwapsResponseItem`
+///Output schema for a single swap item retrieved by transaction hash.
 ///
 /// <details><summary>JSON schema</summary>
 ///
 /// ```json
 ///{
+///  "description": "Output schema for a single swap item retrieved by transaction hash.",
 ///  "type": "object",
 ///  "required": [
+///    "block_timestamp",
 ///    "chain_id",
 ///    "chain_type",
 ///    "counter_token_decimals",
@@ -117,6 +119,11 @@ pub struct SearchSwapsRequest {
 ///    "via_address"
 ///  ],
 ///  "properties": {
+///    "block_timestamp": {
+///      "description": "The timestamp of the block when the swap occurred.",
+///      "type": "number",
+///      "name": "Block Timestamp"
+///    },
 ///    "chain_id": {
 ///      "description": "The chain ID of the swap.",
 ///      "type": "string",
@@ -227,13 +234,15 @@ pub struct SearchSwapsRequest {
 ///      "name": "Via Address"
 ///    }
 ///  },
-///  "additionalProperties": false
+///  "additionalProperties": false,
+///  "name": "Get Swap Response Item"
 ///}
 /// ```
 /// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct SearchSwapsResponseItem {
+    pub block_timestamp: f64,
     ///The chain ID of the swap.
     pub chain_id: ::std::string::String,
     ///The chain type of the swap.

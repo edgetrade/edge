@@ -3,8 +3,8 @@
 use crate::client::{Route, RouteType};
 use std::marker::PhantomData;
 /// Route metadata for this procedure
-pub const ROUTE: Route<ApplyExitStrategyRequest, ApplyExitStrategyResponse> = Route {
-    procedure: "orders.applyExitStrategy",
+pub const ROUTE: Route<RemoveExitStrategyRequest, RemoveExitStrategyResponse> = Route {
+    procedure: "orders.removeExitStrategy",
     route_type: RouteType::Mutation,
     input_schema: PhantomData,
     output_schema: PhantomData,
@@ -41,50 +41,32 @@ pub mod error {
         }
     }
 }
-///Wire format for apply exit strategy request
+///Request to remove an exit strategy
 ///
 /// <details><summary>JSON schema</summary>
 ///
 /// ```json
 ///{
-///  "description": "Wire format for apply exit strategy request",
+///  "description": "Request to remove an exit strategy",
 ///  "type": "object",
 ///  "required": [
-///    "exitStrategyId",
-///    "tokenChainId",
-///    "tokenContractAddress"
+///    "exitStrategyId"
 ///  ],
 ///  "properties": {
 ///    "exitStrategyId": {
-///      "description": "The ID of the exit strategy to apply",
+///      "description": "The ID of the exit strategy to remove",
 ///      "type": "number",
 ///      "name": "Exit Strategy ID"
-///    },
-///    "tokenChainId": {
-///      "description": "The chain ID where the token exists (e.g., \"1\" for Ethereum, \"solana\" for Solana)",
-///      "type": "string",
-///      "name": "Token Chain ID"
-///    },
-///    "tokenContractAddress": {
-///      "description": "The contract address of the token to apply the exit strategy to",
-///      "type": "string",
-///      "name": "Token Contract Address"
 ///    }
 ///  },
-///  "name": "ApplyExitStrategyRequestWire"
+///  "name": "RemoveExitStrategyRequest"
 ///}
 /// ```
 /// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
-pub struct ApplyExitStrategyRequest {
+pub struct RemoveExitStrategyRequest {
     #[serde(rename = "exitStrategyId")]
     pub exit_strategy_id: f64,
-    ///The chain ID where the token exists (e.g., "1" for Ethereum, "solana" for Solana)
-    #[serde(rename = "tokenChainId")]
-    pub token_chain_id: ::std::string::String,
-    ///The contract address of the token to apply the exit strategy to
-    #[serde(rename = "tokenContractAddress")]
-    pub token_contract_address: ::std::string::String,
 }
 ///Common output for all requests that are either successful or not
 ///
@@ -114,7 +96,7 @@ pub struct ApplyExitStrategyRequest {
 /// </details>
 #[derive(::serde::Deserialize, ::serde::Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct ApplyExitStrategyResponse {
+pub struct RemoveExitStrategyResponse {
     ///The error message if the request was not successful
     #[serde(default, skip_serializing_if = "::std::option::Option::is_none")]
     pub error: ::std::option::Option<::std::string::String>,

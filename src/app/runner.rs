@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 
 use crate::app::client::parse_api_credentials;
 use crate::app::handler::{
-    KeyCommandArgs, handle_key, handle_ping, handle_skill, handle_version, handle_wallet, serve,
+    KeyCommandArgs, handle_key, handle_order, handle_ping, handle_skill, handle_version, handle_wallet, serve,
 };
 use crate::client::new_client;
 use crate::commands::serve::mcp::EdgeServer;
@@ -162,6 +162,10 @@ pub async fn run() -> Result<(), PoseidonError> {
     )
     .await
     .map_err(PoseidonError::Client)?;
+
+    if let Some(Commands::Order { command }) = &cli.command {
+        return handle_order(command, &app.session, &api_client).await;
+    }
 
     if let Some(Commands::Key { command }) = &cli.command {
         return handle_key(KeyCommandArgs {

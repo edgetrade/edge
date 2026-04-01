@@ -10,10 +10,12 @@ use tyche_enclave::types::chain_type::ChainType;
 
 use crate::client::RouteExecutor;
 use crate::generated::routes::requests::agent_proof_game::{self, ProofGameRequest, ProofGameResponse};
+use crate::generated::routes::requests::orders_place_spot_order::{PlaceSpotOrderRequest, PlaceSpotOrderResponseItem};
 use crate::generated::routes::requests::{
     agent_create_encrypted_wallet, agent_delete_encrypted_wallet, agent_list_encrypted_wallets,
-    agent_rotate_user_encryption_key,
+    agent_rotate_user_encryption_key, orders_place_spot_order,
 };
+use crate::orders::OrdersError;
 use crate::session::crypto::UsersEncryptionKeys;
 use crate::session::transport::get_transport_key;
 use crate::wallet::types::{Wallet, WalletError, WalletList, WalletResult};
@@ -102,46 +104,27 @@ pub async fn rotate_user_encryption_key(
     client
         .execute(&agent_rotate_user_encryption_key::ROUTE, &request)
         .await
-        .map_err(|e| WalletError::StorageFailed(e.to_string()))?;
+        .map_err(|e| WalletError::Serialization(e.to_string()))?;
 
     Ok(())
 }
 
-/// Conduct the proof game.
-pub async fn proof_game(
-    // wallet_address: String,
-    // wallet_unseal_envelope: Vec<u8>,
-    // encrypted_pvt_key: Vec<u8>,
-    // unsigned_tx: Vec<u8>,
-    // orders: Vec<ProofGameRequestOrdersItem>,
-    // user_key: &UsersEncryptionKeys,
-    request: &ProofGameRequest,
+pub async fn place_spot_order(
+    request: &PlaceSpotOrderRequest,
     client: &impl RouteExecutor,
-) -> WalletResult<ProofGameResponse> {
-    // let enclave_keys = get_transport_key(client).await?;
-    // let key = TransportEnvelopeKey::Unsealing(enclave_keys.deterministic);
+) -> Result<Vec<PlaceSpotOrderResponseItem>, OrdersError> {
+    client
+        .execute(&orders_place_spot_order::ROUTE, request)
+        .await
+        .map_err(|e| OrdersError::ExecutionError(e.to_string()))
+}
 
-    // let encrypted_wallet_blob = WalletUpsert::new(encrypted_pvt_key)
-    //     .seal(&key)
-    //     .map_err(|e| WalletError::InvalidPrivateKey(e.to_string()))?;
-
-    // let envelope = RotateUserKeyPayload::new(user_key.storage, None)
-    //     .seal(&key)
-    //     .map_err(|e| WalletError::InvalidPrivateKey(e.to_string()))?;
-
-    // let request = &ProofGameRequest {
-    //     chain_id: erato::models::ChainId::ETHEREUM.to_string(),
-    //     wallet_address,
-    //     unsigned_tx: encode_prefixed(&unsigned_tx),
-    //     wallet_envelope: STANDARD.encode(&envelope),
-    //     encrypted_wallet_blob: STANDARD.encode(&encrypted_wallet_blob),
-    //     orders,
-    // };
-
+/// Conduct the proof game.
+pub async fn proof_game(request: &ProofGameRequest, client: &impl RouteExecutor) -> WalletResult<ProofGameResponse> {
     client
         .execute(&agent_proof_game::ROUTE, request)
         .await
-        .map_err(|e| WalletError::StorageFailed(e.to_string()))
+        .map_err(|e| WalletError::Crypto(e.to_string()))
 }
 
 /// Delete an encrypted wallet by address.
@@ -153,7 +136,7 @@ pub async fn delete_wallet(address: String, client: &impl RouteExecutor) -> Wall
     client
         .execute(&agent_delete_encrypted_wallet::ROUTE, &request)
         .await
-        .map_err(|e| WalletError::StorageFailed(e.to_string()))?;
+        .map_err(|e| WalletError::WalletNotFound(e.to_string()))?;
 
     Ok(())
 }

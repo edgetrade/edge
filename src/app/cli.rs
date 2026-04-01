@@ -67,6 +67,11 @@ pub enum Commands {
         command: Option<ServeCommand>,
     },
 
+    Order {
+        #[command(subcommand)]
+        command: Option<OrderCommand>,
+    },
+
     Key {
         #[command(subcommand)]
         command: Option<KeyCommand>,
@@ -118,6 +123,28 @@ pub struct ServeArgs {
         help = "Path prefix for the HTTP endpoint (e.g. mcp → /mcp)"
     )]
     pub path: String,
+}
+
+#[derive(Subcommand, Clone)]
+pub enum OrderCommand {
+    /// Place a spot order
+    PlaceSpot {
+        /// Order type
+        #[arg(long, default_value = "buy", help = "The side of the order; must be 'buy' or 'sell'")]
+        side: String,
+        /// Order size
+        #[arg(long, help = "The size of the order in base unit amounts (eg, wei, lamports, etc.)")]
+        size: u128,
+        /// Token ID
+        #[arg(
+            long,
+            help = "The chain id of the token to trade, (eg, '1' for Ethereum, 'solana' for Solana, etc.)"
+        )]
+        chain: String,
+        /// Token contract address
+        #[arg(long, help = "The full contract address of the token to trade")]
+        token: String,
+    },
 }
 
 /// Manage Edge keys which are used to encrypt the messages and information sent to our servers.

@@ -1,7 +1,7 @@
 use clap::CommandFactory;
 use tyche_enclave::types::chain_type::ChainType;
 
-use crate::app::cli::Transport;
+use crate::app::cli::{OrderCommand, Transport};
 use crate::commands;
 use crate::commands::key::filestore::{
     key_create as filestore_create, key_delete as filestore_delete, key_lock as filestore_lock,
@@ -13,6 +13,7 @@ use crate::config::Config;
 use crate::error::PoseidonError;
 use crate::manifest::McpManifest;
 use crate::messages;
+use crate::orders;
 use crate::session::Session;
 use crate::utils::urls::EDGE_MCP_URL;
 
@@ -28,6 +29,32 @@ pub async fn serve(args: &ServeArgs, server: EdgeServer) -> Result<(), PoseidonE
             .serve_stdio()
             .await
             .map_err(|e| PoseidonError::Command(format!("MCP server error: {}", e))),
+    }
+}
+
+pub async fn handle_order(
+    command: &Option<OrderCommand>,
+    session: &Session,
+    client: &crate::client::IrisClient,
+) -> Result<(), PoseidonError> {
+    match command {
+        Some(OrderCommand::PlaceSpot {
+            side,
+            size,
+            chain,
+            token,
+        }) => orders::place_spot(side, size, chain, token, session, client)
+            .await
+            .map_err(PoseidonError::from),
+        None => {
+            // Print help when no subcommand is provided
+            let cmd = Cli::command();
+            let sub = cmd
+                .find_subcommand("order")
+                .expect("order subcommand exists");
+            println!("{}", sub.clone().render_long_help());
+            Ok(())
+        }
     }
 }
 
@@ -64,7 +91,7 @@ pub async fn handle_key(args: KeyCommandArgs) -> Result<(), PoseidonError> {
             // Print help when no subcommand is provided
             let cmd = Cli::command();
             let sub = cmd.find_subcommand("key").expect("key subcommand exists");
-            println!("{}", sub.clone().render_help());
+            println!("{}", sub.clone().render_long_help());
             Ok(())
         }
     }
@@ -99,7 +126,7 @@ pub async fn handle_wallet(
             let sub = cmd
                 .find_subcommand("wallet")
                 .expect("wallet subcommand exists");
-            println!("{}", sub.clone().render_help());
+            println!("{}", sub.clone().render_long_help());
             Ok(())
         }
     }
@@ -132,7 +159,7 @@ pub fn handle_skill(command: &Option<SkillCommand>, manifest: &McpManifest) -> R
             let sub = cmd
                 .find_subcommand("skill")
                 .expect("skill subcommand exists");
-            println!("{}", sub.clone().render_help());
+            println!("{}", sub.clone().render_long_help());
             Ok(())
         }
     }

@@ -29,6 +29,39 @@ pub enum CommandError {
     Wallet(String),
 }
 
+// Only implement From for types that are common to both features.
+// Feature-specific types should use .map_err() at the boundary.
+
+impl From<std::io::Error> for CommandError {
+    fn from(e: std::io::Error) -> Self {
+        CommandError::Io(e.to_string())
+    }
+}
+
+impl From<crate::commands::key::filestore::crypto::types::CryptoError> for CommandError {
+    fn from(e: crate::commands::key::filestore::crypto::types::CryptoError) -> Self {
+        CommandError::Crypto(e.to_string())
+    }
+}
+
+impl From<crate::wallet::types::WalletError> for CommandError {
+    fn from(e: crate::wallet::types::WalletError) -> Self {
+        CommandError::Wallet(e.to_string())
+    }
+}
+
+impl From<crate::commands::key::filestore::storage::StorageError> for CommandError {
+    fn from(e: crate::commands::key::filestore::storage::StorageError) -> Self {
+        CommandError::Storage(e.to_string())
+    }
+}
+
+impl From<crate::commands::wallet::game::game_state::GameStateError> for CommandError {
+    fn from(e: crate::commands::wallet::game::game_state::GameStateError) -> Self {
+        CommandError::Storage(e.to_string())
+    }
+}
+
 /// Error codes for consistent error message formatting.
 #[derive(Debug, Clone, Copy)]
 pub struct ErrorCode(&'static str);
@@ -144,39 +177,6 @@ impl IrisClientError {
             Self::NotImplemented(_) => format!("{}/tools/trade#execution", DOCS_BASE_URL),
             Self::MissingData => format!("{}/errors", DOCS_BASE_URL),
         }
-    }
-}
-
-// Only implement From for types that are common to both features.
-// Feature-specific types should use .map_err() at the boundary.
-
-impl From<std::io::Error> for CommandError {
-    fn from(e: std::io::Error) -> Self {
-        CommandError::Io(e.to_string())
-    }
-}
-
-impl From<crate::commands::key::filestore::crypto::types::CryptoError> for CommandError {
-    fn from(e: crate::commands::key::filestore::crypto::types::CryptoError) -> Self {
-        CommandError::Crypto(e.to_string())
-    }
-}
-
-impl From<crate::wallet::types::WalletError> for CommandError {
-    fn from(e: crate::wallet::types::WalletError) -> Self {
-        CommandError::Wallet(e.to_string())
-    }
-}
-
-impl From<crate::commands::key::filestore::storage::StorageError> for CommandError {
-    fn from(e: crate::commands::key::filestore::storage::StorageError) -> Self {
-        CommandError::Storage(e.to_string())
-    }
-}
-
-impl From<crate::commands::wallet::game::game_state::GameStateError> for CommandError {
-    fn from(e: crate::commands::wallet::game::game_state::GameStateError) -> Self {
-        CommandError::Storage(e.to_string())
     }
 }
 

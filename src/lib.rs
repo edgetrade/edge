@@ -111,6 +111,7 @@ pub mod config;
 pub mod error;
 pub mod manifest;
 pub mod messages;
+pub mod orders;
 pub mod session;
 pub mod state;
 pub mod utils;

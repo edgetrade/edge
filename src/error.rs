@@ -34,6 +34,10 @@ pub enum PoseidonError {
     #[error("Config error: {0}")]
     Config(#[from] crate::config::ConfigError),
 
+    /// Orders errors.
+    #[error("Orders error: {0}")]
+    Orders(#[from] crate::orders::OrdersError),
+
     /// Session management errors.
     #[error("Session error: {0}")]
     Session(#[from] crate::session::SessionError),
