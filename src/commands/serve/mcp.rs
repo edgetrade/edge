@@ -14,10 +14,11 @@ use rmcp::{
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::client::IrisClient;
+use crate::client::{IrisClient, IrisClientError};
 use crate::commands::subscribe::alerts::{AlertRegistry, new_alert_registry};
 use crate::commands::subscribe::{SubscriptionManager, WebhookDispatcher};
 use crate::error::PoseidonError;
+use crate::generated::validation::find_route;
 use crate::manifest::{McpManifest, inject_local_agent_actions, inject_local_resources};
 use crate::messages;
 
@@ -185,11 +186,16 @@ impl ServerHandler for EdgeServer {
                 .await;
             }
 
-            match client
-                .query::<Value>(&action_def.procedure, data.clone())
-                .await
-            {
+            let route = find_route(&action_def.procedure)
+                .ok_or_else(|| McpError::invalid_params(format!("Action not found: {}", action_def.procedure), None))?;
+
+            match route.execute(&client, data).await {
                 Ok(result) => Ok(CallToolResult::success(vec![Content::text(result.to_string())])),
+                Err(IrisClientError::Deserialization(_)) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Input validation failed for '{}'. Expected input schema: {}",
+                    action_def.procedure,
+                    serde_json::to_string_pretty(&action_def.input_schema).unwrap_or_default()
+                ))])),
                 Err(e) => Ok(CallToolResult::error(vec![Content::text(e.to_string())])),
             }
         }

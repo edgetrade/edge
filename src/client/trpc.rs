@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use serde::Serialize;
 use serde_json::Value;
 
-use super::executor::{mutation, ping, query};
+use super::executor::ping;
 use super::subscribe::{DispatchParams, IrisClientInner, subscribe, subscribe_for_dispatch, unsubscribe};
+
 use crate::messages::{self, IrisClientError};
 
 #[derive(Debug, Clone, Copy)]
@@ -51,20 +51,9 @@ impl IrisClient {
         })
     }
 
-    pub async fn query<T: serde::de::DeserializeOwned + Serialize + Clone>(
-        &self,
-        path: &str,
-        input: Value,
-    ) -> Result<T, IrisClientError> {
-        query(&self.inner, path, input).await
-    }
-
-    pub async fn mutation<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &str,
-        input: Value,
-    ) -> Result<T, IrisClientError> {
-        mutation(&self.inner, path, input).await
+    pub async fn ping(&self) -> Result<(), IrisClientError> {
+        let url = format!("{}/ping", self.inner.base_url);
+        ping(&self.inner, &url).await
     }
 
     pub async fn subscribe(
@@ -86,11 +75,6 @@ impl IrisClient {
 
     pub async fn unsubscribe(&self, id: u32) -> Result<(), IrisClientError> {
         unsubscribe(self.inner.clone(), id).await
-    }
-
-    pub async fn ping(&self) -> Result<(), IrisClientError> {
-        let url = format!("{}/ping", self.inner.base_url);
-        ping(&self.inner, &url).await
     }
 }
 

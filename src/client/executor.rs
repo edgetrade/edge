@@ -38,11 +38,13 @@ pub async fn query<T: DeserializeOwned + Serialize + Clone>(
     path: &str,
     input: Value,
 ) -> Result<T, IrisClientError> {
-    let result = call::<T>(inner, path, input).await?;
-    if inner.verbose {
-        messages::success::query_response(path, &serde_json::to_string(&result).unwrap());
+    let result = call::<T>(inner, path, input).await;
+    if inner.verbose
+        && let Ok(rez) = result.as_ref()
+    {
+        messages::success::query_response(path, &serde_json::to_string(rez).unwrap());
     }
-    Ok(result)
+    result
 }
 
 /// Execute a mutation call with the given path and input.
