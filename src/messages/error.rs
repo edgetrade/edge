@@ -38,26 +38,26 @@ impl From<std::io::Error> for CommandError {
     }
 }
 
-impl From<crate::commands::key::filestore::crypto::types::CryptoError> for CommandError {
-    fn from(e: crate::commands::key::filestore::crypto::types::CryptoError) -> Self {
+impl From<crate::domains::keystore::crypto::types::CryptoError> for CommandError {
+    fn from(e: crate::domains::keystore::crypto::types::CryptoError) -> Self {
         CommandError::Crypto(e.to_string())
     }
 }
 
-impl From<crate::wallet::types::WalletError> for CommandError {
-    fn from(e: crate::wallet::types::WalletError) -> Self {
+impl From<crate::domains::enclave::wallet::types::WalletError> for CommandError {
+    fn from(e: crate::domains::enclave::wallet::types::WalletError) -> Self {
         CommandError::Wallet(e.to_string())
     }
 }
 
-impl From<crate::commands::key::filestore::storage::StorageError> for CommandError {
-    fn from(e: crate::commands::key::filestore::storage::StorageError) -> Self {
+impl From<crate::domains::keystore::crypto::storage::StorageError> for CommandError {
+    fn from(e: crate::domains::keystore::crypto::storage::StorageError) -> Self {
         CommandError::Storage(e.to_string())
     }
 }
 
-impl From<crate::commands::wallet::game::game_state::GameStateError> for CommandError {
-    fn from(e: crate::commands::wallet::game::game_state::GameStateError) -> Self {
+impl From<crate::domains::enclave::wallet::game::game_state::GameStateError> for CommandError {
+    fn from(e: crate::domains::enclave::wallet::game::game_state::GameStateError) -> Self {
         CommandError::Storage(e.to_string())
     }
 }

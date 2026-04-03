@@ -19,36 +19,32 @@
 //! ```rust,no_run
 //! use poseidon::{Config, Poseidon};
 //! use poseidon::key;
-//! use poseidon::EdgeState;
 //!
-//! async fn example() {
+//! fn example() {
 //!     // Load configuration
 //!     let config = Config::load_default().expect("Failed to load config");
 //!
 //!     // Create Poseidon instance
 //!     let poseidon = Poseidon::new(config.clone());
 //!
-//!     // Initialize global state
-//!     let state = EdgeState::init(None).await.expect("Failed to init state");
-//!
 //!     // Create keys
-//!     key::create(&config).await.expect("Failed to create key");
+//!     key::create(&config).expect("Failed to create key");
 //! }
 //! ```
 //!
-//! ## State-Driven Architecture
+//! ## Event-Driven Architecture
 //!
-//! The `EdgeState` provides centralized state management:
+//! The `EventBus` provides centralized event management:
 //!
 //! ```rust,no_run
-//! use poseidon::state::{EdgeState, StateEvent};
+//! use poseidon::event_bus::{EventBus, StateEvent};
 //!
 //! async fn state_example() {
-//!     // Initialize once
-//!     let state = EdgeState::init(None).await.unwrap();
+//!     // Create event bus
+//!     let bus = EventBus::new(128);
 //!
 //!     // Subscribe to events
-//!     let mut rx = state.subscribe();
+//!     let mut rx = bus.subscribe();
 //!     tokio::spawn(async move {
 //!         while let Ok(event) = rx.recv().await {
 //!             match event {
@@ -89,13 +85,15 @@
 //!
 //! ```rust,no_run
 //! use poseidon::error::{PoseidonError, Result};
+//! use poseidon::domains::config::Config;
+//! use poseidon::domains::keystore::Session;
 //!
 //! fn may_fail() -> Result<()> {
 //!     // Config operations automatically convert
-//!     let config = poseidon::config::Config::load_default()?;
+//!     let config = Config::load_default()?;
 //!
 //!     // Session operations automatically convert
-//!     let session = poseidon::session::Session::new(config);
+//!     let _session = Session::new(config);
 //!
 //!     Ok(())
 //! }
@@ -106,27 +104,19 @@
 
 pub mod app;
 pub mod client;
-pub mod commands;
-pub mod config;
+pub mod domains;
 pub mod error;
-pub mod manifest;
+pub mod event_bus;
 pub mod messages;
-pub mod orders;
-pub mod session;
-pub mod state;
 pub mod utils;
-pub mod wallet;
-
-#[rustfmt::skip]
-pub mod generated;
 
 // Re-export key types for convenience
 pub use app::run;
-pub use client::IrisClient;
-pub use config::Config;
+pub use domains::client::IrisClient;
+pub use domains::config::Config;
+pub use domains::keystore::{BackendType, KeystoreHandle, KeystoreRequest};
 pub use error::{PoseidonError, Result};
-pub use session::Session;
-pub use state::{EdgeState, StateEvent};
+pub use event_bus::StateEvent;
 
 /// Poseidon library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -171,9 +161,9 @@ impl Poseidon {
 /// This module provides programmatic access to key operations
 /// like creating, unlocking, locking, and deleting keys.
 pub mod key {
-    use crate::config::Config;
+    use crate::domains::config::Config;
+    use crate::domains::keystore::keyring_available;
     use crate::error::Result;
-    use crate::session::keyring_available;
 
     /// Key info for library operations.
     #[derive(Debug, Clone)]
@@ -201,18 +191,18 @@ pub mod key {
     /// use poseidon::key;
     /// use poseidon::Config;
     ///
-    /// async fn example() {
+    /// fn example() {
     ///     let config = Config::default();
-    ///     key::create(&config).await.unwrap();
+    ///     key::create(&config).unwrap();
     /// }
     /// ```
-    pub async fn create(config: &Config) -> Result<()> {
+    pub fn create(config: &Config) -> Result<()> {
         if keyring_available() {
             // Use keyring-based key creation
-            crate::commands::key::keyring::keyring_create(config.clone())
+            crate::domains::keystore::keyring::keyring_create(config.clone())
         } else {
             // Use filestore-based key creation
-            crate::commands::key::filestore::key_create()
+            crate::domains::keystore::filestore::key_create()
         }
     }
 
@@ -228,7 +218,7 @@ pub mod key {
     /// # Returns
     /// `Ok(())` on success, or an error if unlocking fails.
     pub fn unlock(config: &Config, password: &str) -> Result<()> {
-        let session = crate::session::Session::new(config.clone());
+        let session = crate::domains::keystore::Session::new(config.clone());
         session
             .unlock_with_password(password)
             .map_err(crate::error::PoseidonError::Session)
@@ -244,7 +234,7 @@ pub mod key {
     /// # Returns
     /// `Ok(())` on success, or an error if locking fails.
     pub fn lock(config: &Config) -> Result<()> {
-        let session = crate::session::Session::new(config.clone());
+        let session = crate::domains::keystore::Session::new(config.clone());
         session.lock().map_err(crate::error::PoseidonError::Session)
     }
 
@@ -256,7 +246,7 @@ pub mod key {
     /// # Returns
     /// `Ok(true)` if unlocked, `Ok(false)` if locked.
     pub fn is_unlocked(config: &Config) -> Result<bool> {
-        let session = crate::session::Session::new(config.clone());
+        let session = crate::domains::keystore::Session::new(config.clone());
         Ok(session.is_unlocked())
     }
 
@@ -270,7 +260,7 @@ pub mod key {
     /// # Returns
     /// `Ok(())` on success, or an error if deletion fails.
     pub fn delete(config: &Config) -> Result<()> {
-        let session = crate::session::Session::new(config.clone());
+        let session = crate::domains::keystore::Session::new(config.clone());
         session.lock().map_err(crate::error::PoseidonError::Session)
     }
 
@@ -282,7 +272,7 @@ pub mod key {
     /// # Returns
     /// `Ok(KeyInfo)` containing key state information.
     pub fn info(config: &Config) -> Result<KeyInfo> {
-        let session = crate::session::Session::new(config.clone());
+        let session = crate::domains::keystore::Session::new(config.clone());
         Ok(KeyInfo {
             keyring_available: keyring_available(),
             is_unlocked: session.is_unlocked(),
@@ -297,10 +287,11 @@ pub mod key {
 pub mod wallet_api {
     use tyche_enclave::types::chain_type::ChainType;
 
-    use crate::client::IrisClient;
+    use crate::domains::client::IrisClient;
+    use crate::domains::client::list_wallets;
+    use crate::domains::enclave::wallet::types::WalletList;
+    use crate::domains::keystore::Session;
     use crate::error::Result;
-    use crate::session::Session;
-    use crate::wallet::types::WalletList;
 
     /// Wallet info for library operations.
     #[derive(Debug, Clone)]
@@ -333,7 +324,7 @@ pub mod wallet_api {
     /// # Returns
     /// `Ok(Vec<WalletInfo>)` containing wallet information.
     pub async fn list(client: &IrisClient) -> Result<Vec<WalletInfo>> {
-        let wallets = crate::client::list_wallets(client).await?;
+        let wallets = list_wallets(client).await?;
         Ok(wallets.into_iter().map(WalletInfo::from).collect())
     }
 
@@ -359,11 +350,11 @@ pub mod wallet_api {
             .get_user_encryption_key()
             .map_err(crate::error::PoseidonError::Session)?
             .ok_or(crate::error::PoseidonError::Session(
-                crate::session::SessionError::NotFound,
+                crate::domains::keystore::SessionError::NotFound,
             ))?;
 
         let name = name.unwrap_or_else(|| format!("{} Wallet", chain));
-        let wallet = crate::wallet::create::create_wallet(chain, name.clone(), &uek, client)
+        let wallet = crate::domains::enclave::create_wallet(chain, name.clone(), &uek, client)
             .await
             .map_err(|e| crate::error::PoseidonError::Wallet(e.to_string()))?;
 
@@ -398,11 +389,11 @@ pub mod wallet_api {
             .get_user_encryption_key()
             .map_err(crate::error::PoseidonError::Session)?
             .ok_or(crate::error::PoseidonError::Session(
-                crate::session::SessionError::NotFound,
+                crate::domains::keystore::SessionError::NotFound,
             ))?;
 
         let name = name.unwrap_or_else(|| format!("{} Wallet", chain));
-        let wallet = crate::wallet::import::import_wallet(private_key, chain, name.clone(), &uek, client)
+        let wallet = crate::domains::enclave::import_wallet(private_key, chain, name.clone(), &uek, client)
             .await
             .map_err(|e| crate::error::PoseidonError::Wallet(e.to_string()))?;
 
@@ -426,7 +417,7 @@ pub mod wallet_api {
     /// `Ok(())` on success, or an error if deletion fails.
     pub async fn delete(name: &str, session: &Session, client: &IrisClient) -> Result<()> {
         let _ = session; // Session may be used for verification in future
-        crate::client::delete_wallet(name.to_string(), client)
+        crate::domains::client::delete_wallet(name.to_string(), client)
             .await
             .map_err(|e| crate::error::PoseidonError::Wallet(e.to_string()))
     }
@@ -441,11 +432,13 @@ pub mod server {
 
     use tokio::sync::RwLock;
 
-    use crate::client::IrisClient;
-    use crate::config::Config;
+    use crate::domains::client::IrisClient;
+    use crate::domains::client::manifest::types::McpManifest;
+    use crate::domains::config::Config;
+    use crate::domains::config::actor::FeatureServerConfig;
     use crate::error::Result;
-    use crate::manifest::McpManifest;
-    use crate::state::{FeatureServerConfig, ServerFeature, StateEventReceiver};
+    use crate::event_bus::ServerFeature;
+    use crate::event_bus::StateEventReceiver;
 
     /// Server configuration for library use.
     #[derive(Debug, Clone)]
@@ -474,17 +467,6 @@ pub mod server {
         }
     }
 
-    impl From<ServerConfig> for crate::state::ServerConfig {
-        fn from(config: ServerConfig) -> Self {
-            Self {
-                host: config.host,
-                port: config.port,
-                path: config.path,
-                stdio_mode: config.stdio_mode,
-            }
-        }
-    }
-
     /// Server handle for managing the MCP server.
     ///
     /// This struct provides methods for controlling the server
@@ -509,14 +491,11 @@ pub mod server {
     pub async fn start(
         _config: &Config,
         server_config: ServerConfig,
-        client: IrisClient,
-        manifest: Arc<RwLock<McpManifest>>,
+        _client: IrisClient,
+        _manifest: Arc<RwLock<McpManifest>>,
     ) -> Result<ServerHandle> {
-        // Initialize the Edge server
-        let _server = crate::commands::serve::mcp::EdgeServer::new(client, manifest)
-            .await
-            .map_err(|e| crate::error::PoseidonError::Other(e.to_string()))?;
-
+        // MCP server initialization is handled by the McpHandle
+        // The server is started via the handle methods
         Ok(ServerHandle { config: server_config })
     }
 
@@ -564,7 +543,7 @@ pub mod server {
     /// # Returns
     /// `Ok(StateEventReceiver)` on success, or an error if subscription fails.
     pub fn subscribe() -> Result<StateEventReceiver> {
-        let (_sender, receiver) = crate::state::create_state_event_channel(128);
+        let (_sender, receiver) = crate::event_bus::create_state_event_channel(128);
         Ok(receiver)
     }
 }

@@ -1,10 +1,15 @@
 //! Shared CLI definitions for Edge Trade binaries.
 //!
 //! This module provides the common CLI structure used by both
+//! the desktop and CLI binaries. It also re-exports the orchestrator
+//! command types for use with clap.
+//!
+//! MIGRATED FROM: cli.rs - original CLI definitions
+//! REFACTORED: Now compatible with orchestrator command types
 
 use clap::{Parser, Subcommand, ValueEnum};
 
-use crate::config::default_config_path_buf;
+use crate::domains::config::default_config_path_buf;
 
 pub const DEFAULT_TRANSPORT: &str = "stdio";
 pub const DEFAULT_HOST: &str = "127.0.0.1";
@@ -55,6 +60,14 @@ pub struct Cli {
 
     #[command(subcommand)]
     pub command: Option<Commands>,
+
+    /// Run as a persistent daemon process
+    #[arg(
+        long,
+        global = true,
+        help = "Run as a persistent daemon process that accepts IPC connections"
+    )]
+    pub daemon: bool,
 }
 
 #[derive(Subcommand)]

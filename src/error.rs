@@ -17,13 +17,14 @@ use thiserror::Error;
 ///
 /// ```rust
 /// use poseidon::error::PoseidonError;
+/// use poseidon::domains::keystore::Session;
 ///
 /// fn may_fail() -> Result<(), PoseidonError> {
 ///     // Config operations automatically convert
-///     let config = poseidon::config::Config::load_default()?;
+///     let config = poseidon::domains::config::Config::load_default()?;
 ///     
 ///     // Session operations automatically convert  
-///     let session = poseidon::session::Session::new(config);
+///     let _session = Session::new(config);
 ///     
 ///     Ok(())
 /// }
@@ -32,15 +33,11 @@ use thiserror::Error;
 pub enum PoseidonError {
     /// Configuration-related errors.
     #[error("Config error: {0}")]
-    Config(#[from] crate::config::ConfigError),
-
-    /// Orders errors.
-    #[error("Orders error: {0}")]
-    Orders(#[from] crate::orders::OrdersError),
+    Config(#[from] crate::domains::config::ConfigError),
 
     /// Session management errors.
     #[error("Session error: {0}")]
-    Session(#[from] crate::session::SessionError),
+    Session(#[from] crate::domains::keystore::SessionError),
 
     /// Client/API communication errors.
     #[error("Client error: {0}")]
@@ -48,7 +45,7 @@ pub enum PoseidonError {
 
     /// State management errors.
     #[error("State error: {0}")]
-    State(#[from] crate::state::StateError),
+    State(String),
 
     /// I/O errors.
     #[error("IO error: {0}")]
@@ -126,25 +123,27 @@ impl PoseidonError {
     ///
     /// This typically means the application hasn't been properly started.
     pub fn is_not_initialized(&self) -> bool {
-        matches!(self, PoseidonError::State(crate::state::StateError::NotInitialized))
+        matches!(self, PoseidonError::State(s) if s.contains("not initialized"))
     }
 
     /// Returns true if this error indicates a resource was not found.
     pub fn is_not_found(&self) -> bool {
-        matches!(
-            self,
-            PoseidonError::NotFound(_)
-                | PoseidonError::Session(crate::session::SessionError::NotFound)
-                | PoseidonError::State(crate::state::StateError::NotInitialized)
-        )
+        matches!(self, PoseidonError::NotFound(_))
+            || matches!(
+                self,
+                PoseidonError::Session(crate::domains::keystore::SessionError::Keyring(s)) if s.contains("not found")
+            )
+            || matches!(
+                self,
+                PoseidonError::Session(crate::domains::keystore::SessionError::Filestore(s)) if s.contains("not found")
+            )
+            || matches!(self, PoseidonError::State(s) if s.contains("not initialized"))
     }
 
     /// Returns true if this error indicates a resource already exists.
     pub fn is_already_exists(&self) -> bool {
-        matches!(
-            self,
-            PoseidonError::AlreadyExists(_) | PoseidonError::State(crate::state::StateError::AlreadyInitialized)
-        )
+        matches!(self, PoseidonError::AlreadyExists(_))
+            || matches!(self, PoseidonError::State(s) if s.contains("already initialized"))
     }
 
     /// Get a user-friendly error message.
@@ -168,10 +167,10 @@ impl PoseidonError {
             PoseidonError::InvalidInput(msg) => {
                 format!("Invalid input: {}. Please check your input and try again.", msg)
             }
-            PoseidonError::Session(crate::session::SessionError::NotFound) => {
+            PoseidonError::Session(e) if e.to_string().contains("not found") || e.to_string().contains("Not found") => {
                 "No active session found. Please unlock your session first.".to_string()
             }
-            PoseidonError::State(crate::state::StateError::NotInitialized) => {
+            PoseidonError::State(s) if s.contains("not initialized") => {
                 "Application not initialized. Please run the init command first.".to_string()
             }
             _ => self.to_string(),
@@ -182,26 +181,26 @@ impl PoseidonError {
 // Additional From implementations for converting from string-based errors
 // commonly used in the codebase
 
-impl From<crate::commands::key::filestore::crypto::types::CryptoError> for PoseidonError {
-    fn from(e: crate::commands::key::filestore::crypto::types::CryptoError) -> Self {
+impl From<crate::domains::keystore::crypto::types::CryptoError> for PoseidonError {
+    fn from(e: crate::domains::keystore::crypto::types::CryptoError) -> Self {
         PoseidonError::Crypto(e.to_string())
     }
 }
 
-impl From<crate::commands::key::filestore::storage::StorageError> for PoseidonError {
-    fn from(e: crate::commands::key::filestore::storage::StorageError) -> Self {
+impl From<crate::domains::keystore::crypto::storage::StorageError> for PoseidonError {
+    fn from(e: crate::domains::keystore::crypto::storage::StorageError) -> Self {
         PoseidonError::Storage(e.to_string())
     }
 }
 
-impl From<crate::wallet::types::WalletError> for PoseidonError {
-    fn from(e: crate::wallet::types::WalletError) -> Self {
+impl From<crate::domains::enclave::wallet::types::WalletError> for PoseidonError {
+    fn from(e: crate::domains::enclave::wallet::types::WalletError) -> Self {
         PoseidonError::Wallet(e.to_string())
     }
 }
 
-impl From<crate::commands::wallet::game::game_state::GameStateError> for PoseidonError {
-    fn from(e: crate::commands::wallet::game::game_state::GameStateError) -> Self {
+impl From<crate::domains::enclave::wallet::game::game_state::GameStateError> for PoseidonError {
+    fn from(e: crate::domains::enclave::wallet::game::game_state::GameStateError) -> Self {
         PoseidonError::Storage(e.to_string())
     }
 }
@@ -213,7 +212,7 @@ impl From<crate::messages::CommandError> for PoseidonError {
             crate::messages::CommandError::Crypto(msg) => PoseidonError::Crypto(msg),
             crate::messages::CommandError::Storage(msg) => PoseidonError::Storage(msg),
             crate::messages::CommandError::Session(msg) => {
-                PoseidonError::Session(crate::session::SessionError::Keyring(msg))
+                PoseidonError::Session(crate::domains::keystore::SessionError::Keyring(msg))
             }
             crate::messages::CommandError::Io(msg) => PoseidonError::Io(std::io::Error::other(msg)),
             crate::messages::CommandError::AlreadyExists => PoseidonError::AlreadyExists("Resource".to_string()),
@@ -224,20 +223,20 @@ impl From<crate::messages::CommandError> for PoseidonError {
     }
 }
 
-impl From<crate::manifest::ManifestError> for PoseidonError {
-    fn from(e: crate::manifest::ManifestError) -> Self {
+impl From<crate::domains::client::manifest::ManifestError> for PoseidonError {
+    fn from(e: crate::domains::client::manifest::ManifestError) -> Self {
         PoseidonError::Manifest(e.to_string())
     }
 }
 
-impl From<crate::manifest::fetch::FetchError> for PoseidonError {
-    fn from(e: crate::manifest::fetch::FetchError) -> Self {
+impl From<crate::domains::client::manifest::fetch::FetchError> for PoseidonError {
+    fn from(e: crate::domains::client::manifest::fetch::FetchError) -> Self {
         PoseidonError::Manifest(e.to_string())
     }
 }
 
-impl From<crate::session::transport::TransportCacheError> for PoseidonError {
-    fn from(e: crate::session::transport::TransportCacheError) -> Self {
+impl From<crate::domains::client::TransportCacheError> for PoseidonError {
+    fn from(e: crate::domains::client::TransportCacheError) -> Self {
         PoseidonError::Transport(e.to_string())
     }
 }
@@ -257,6 +256,37 @@ impl From<toml::ser::Error> for PoseidonError {
 impl From<serde_json::Error> for PoseidonError {
     fn from(e: serde_json::Error) -> Self {
         PoseidonError::Serialization(format!("JSON error: {}", e))
+    }
+}
+
+// Domain error conversions for the commands module
+impl From<crate::domains::keystore::KeystoreError> for PoseidonError {
+    fn from(e: crate::domains::keystore::KeystoreError) -> Self {
+        PoseidonError::Command(format!("Keystore error: {}", e))
+    }
+}
+
+impl From<crate::domains::enclave::EnclaveError> for PoseidonError {
+    fn from(e: crate::domains::enclave::EnclaveError) -> Self {
+        PoseidonError::Wallet(format!("Enclave error: {}", e))
+    }
+}
+
+impl From<crate::domains::mcp::McpError> for PoseidonError {
+    fn from(e: crate::domains::mcp::McpError) -> Self {
+        PoseidonError::Command(format!("MCP error: {}", e))
+    }
+}
+
+impl From<crate::domains::alerts::AlertsError> for PoseidonError {
+    fn from(e: crate::domains::alerts::AlertsError) -> Self {
+        PoseidonError::Command(format!("Alerts error: {}", e))
+    }
+}
+
+impl From<crate::domains::trades::TradesError> for PoseidonError {
+    fn from(e: crate::domains::trades::TradesError) -> Self {
+        PoseidonError::Command(format!("Trades error: {}", e))
     }
 }
 

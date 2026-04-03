@@ -25,6 +25,13 @@ struct SchemaFile {
     output_schema: serde_json::Value,
 }
 
+/// Information about a generated route for validation module
+#[derive(Debug, Clone)]
+struct RouteInfo {
+    module_path: String,
+    procedure: String,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Git version info
     let gitcl = GitclBuilder::default()
@@ -39,18 +46,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Information about a generated route for validation module
-#[derive(Debug, Clone)]
-struct RouteInfo {
-    module_path: String,
-    procedure: String,
-}
-
 fn generate_types_from_schemas() -> Result<(), Box<dyn std::error::Error>> {
     // Define source and output directories relative to CARGO_MANIFEST_DIR
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?);
     let chaos_routes_dir = manifest_dir.join("../chaos/src/generated/routes");
-    let output_base_dir = manifest_dir.join("src/generated/routes");
+    let output_base_dir = manifest_dir.join("src/domains/client/generated/routes");
 
     // Collect route info for all generated routes
     let mut all_routes: Vec<RouteInfo> = Vec::new();

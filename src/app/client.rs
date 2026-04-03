@@ -2,7 +2,7 @@ use std::process;
 
 use std::path::PathBuf;
 
-use crate::config::Config;
+use crate::domains::config::Config;
 use crate::messages;
 use crate::utils::urls::EDGE_MCP_URL;
 

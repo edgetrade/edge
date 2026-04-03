@@ -1,234 +1,172 @@
-//! Shared application logic for Edge Trade binaries.
+//! Application runner
 //!
-//! This module provides the main application loop that is shared between
-//! the desktop and server binaries. The key command implementations differ
-//! based on compile-time feature flags.
+//! Entry point for CLI vs daemon mode execution
 
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use clap::{CommandFactory, Parser};
-use colored_json::to_colored_json_auto;
-use tokio::sync::RwLock;
+use clap::Parser;
 
-use crate::app::client::parse_api_credentials;
-use crate::app::handler::{
-    KeyCommandArgs, handle_key, handle_order, handle_ping, handle_skill, handle_version, handle_wallet, serve,
-};
-use crate::client::new_client;
-use crate::commands::serve::mcp::EdgeServer;
-use crate::config::Config;
-use crate::error::PoseidonError;
-use crate::manifest::{ManifestManager, McpManifest};
-use crate::messages;
-use crate::session::crypto::UsersEncryptionKeys;
-use crate::session::{Session, SessionError, keyring_available};
+use crate::app::cli::{Cli, Commands, Transport};
+use crate::app::handler::{handle_order, handle_ping, handle_version};
+use crate::app::orchestrator::{App, Command, CommandOutput, KeyCommand, WalletCommand};
+use crate::domains::mcp::TransportType;
 
-use super::cli::{Cli, Commands};
+/// Parse CLI transport into orchestrator TransportType
+fn parse_transport(transport: Transport) -> Result<TransportType, Box<dyn std::error::Error>> {
+    match transport {
+        Transport::Stdio => Ok(TransportType::Stdio),
+        Transport::Http => Ok(TransportType::Http {
+            host: "127.0.0.1".to_string(),
+            port: 3000,
+        }),
+    }
+}
 
-/// Main application struct with unified session and manifest management.
+/// Run the application
 ///
-/// The `App` struct provides a high-level interface for the Edge CLI
-/// that automatically handles session backend selection (keyring vs file storage)
-/// and manifest lifecycle management.
-#[derive(Debug)]
-pub struct App {
-    /// The session backend (keyring or file storage)
-    session: Session,
-    /// The manifest manager (lazy-initialized on first access)
-    manifest_manager: Option<ManifestManager>,
-}
-
-impl App {
-    /// Create a new App instance with automatic session backend selection.
-    ///
-    /// This constructor:
-    /// 1. Probes the OS keyring to check availability
-    /// 2. Uses `KeyringSession` if the keyring is available
-    /// 3. Falls back to `FileStoreSession` with a warning if keyring fails
-    pub fn new(config: Config) -> Self {
-        let session = if keyring_available() {
-            Session::Keyring(crate::session::KeyringSession::new(config))
-        } else {
-            messages::warning::keyring_unavailable();
-            Session::File(crate::session::FileStoreSession::new(config))
-        };
-        Self {
-            session,
-            manifest_manager: None,
-        }
-    }
-
-    /// Create a new App explicitly using the keyring backend.
-    ///
-    /// # Panics
-    /// Panics if the keyring is not available.
-    pub fn new_with_keyring(config: Config) -> Self {
-        Self {
-            session: Session::Keyring(crate::session::KeyringSession::new(config)),
-            manifest_manager: None,
-        }
-    }
-
-    /// Create a new App explicitly using the file storage backend.
-    pub fn new_with_file(config: Config) -> Self {
-        Self {
-            session: Session::File(crate::session::FileStoreSession::new(config)),
-            manifest_manager: None,
-        }
-    }
-
-    /// Check if the session is unlocked.
-    pub fn is_unlocked(&self) -> bool {
-        self.session.is_unlocked()
-    }
-
-    /// Unlock the session with the provided password.
-    pub fn unlock(&mut self, uek: &UsersEncryptionKeys) -> Result<(), SessionError> {
-        self.session.unlock(uek)
-    }
-
-    /// Lock the session.
-    pub fn lock(&mut self) -> Result<(), SessionError> {
-        self.session.lock()
-    }
-
-    /// Initialize the manifest manager.
-    ///
-    /// This fetches or loads the manifest and optionally starts background refresh.
-    pub async fn init_manifest(
-        &mut self,
-        url_input: String,
-        api_key: String,
-        refresh: bool,
-    ) -> Result<(), crate::manifest::ManifestError> {
-        let url = format!("{}/mcp/manifest", url_input);
-        let manager = ManifestManager::new(url, api_key, refresh).await?;
-        self.manifest_manager = Some(manager);
-        Ok(())
-    }
-
-    /// Get the manifest if initialized.
-    pub fn manifest(&self) -> Option<Arc<RwLock<McpManifest>>> {
-        self.manifest_manager.as_ref().map(|m| m.manifest())
-    }
-
-    /// Get the manifest manager if initialized.
-    pub fn manifest_manager(&self) -> Option<&ManifestManager> {
-        self.manifest_manager.as_ref()
-    }
-}
-
-impl Default for App {
-    fn default() -> Self {
-        Self::new(Config::default())
-    }
-}
-
-/// Main application entry point.
-pub async fn run() -> Result<(), PoseidonError> {
-    // Create the App instance with session management
+/// Entry point that parses CLI and either:
+/// - Runs a single CLI command and exits
+/// - Starts the daemon and runs until shutdown
+pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
-    let config_path = Some(PathBuf::from(&cli.config));
-    let config = Config::load(config_path).unwrap_or_default();
-    let mut app = App::new(config.clone());
 
-    // ------------------------------------------------------------------------
-    //
-    // Commands that do not require the API client
-    //
-    // ------------------------------------------------------------------------
-    // Note: Key commands still need the client for update operations
-    // (e.g., rotating keys on the server), so we initialize it early
+    // Parse config path
+    let config_path = if cli.config.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(&cli.config))
+    };
 
-    if matches!(cli.command, Some(Commands::Ping)) {
-        return handle_ping(cli.verbose).await;
+    // Clone config_path for potential later use
+    let config_path_clone = config_path.clone();
+
+    // Initialize App orchestrator with iris_url from CLI
+    let app = App::new(config_path).await?;
+
+    if cli.daemon {
+        // Run as persistent daemon
+        app.run_daemon().await?;
+    } else {
+        // Run CLI command
+        let output = match cli.command {
+            Some(Commands::Order { command }) => {
+                // Get config for session creation
+                let config = crate::domains::config::Config::load(config_path_clone.clone())
+                    .map_err(|e| format!("Failed to load config: {}", e))?;
+
+                // Create session
+                let session = crate::domains::keystore::Session::new(config);
+
+                // Get IrisClient from client handle
+                let client = app
+                    .client
+                    .get_client()
+                    .await
+                    .map_err(|e| format!("Failed to get client: {}", e))?
+                    .ok_or("Client not connected")?;
+
+                // Call handle_order with ? operator for proper error handling
+                return handle_order(&command, &session, &client)
+                    .await
+                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>);
+            }
+            Some(Commands::Key { command }) => {
+                let cmd = command.ok_or("Key command required")?;
+                let key_cmd = parse_key_command(cmd)?;
+                app.run_command(Command::Key(key_cmd)).await?
+            }
+            Some(Commands::Wallet { command }) => {
+                let cmd = command.ok_or("Wallet command required")?;
+                let wallet_cmd = parse_wallet_command(cmd)?;
+                app.run_command(Command::Wallet(wallet_cmd)).await?
+            }
+            Some(Commands::Serve { args, command: _ }) => {
+                let transport = parse_transport(args.transport)?;
+                app.run_command(Command::Serve(transport)).await?
+            }
+            Some(Commands::ListTools) => {
+                // ListTools not yet implemented in orchestrator
+                return Err("ListTools command not yet implemented in daemon mode".into());
+            }
+            Some(Commands::Skill { command: _ }) => {
+                // handle_skill(&command, &app.manifest)?;
+                // TODO: Implement skill command
+                CommandOutput::Success
+            }
+            Some(Commands::Ping) => {
+                handle_ping(cli.verbose).await?;
+                CommandOutput::Success
+            }
+            Some(Commands::Version) => {
+                handle_version()?;
+                CommandOutput::Success
+            }
+            None => {
+                // No command - print help
+                return Err("No command specified. Use --help for usage information.".into());
+            }
+        };
+
+        // Output result
+        match output {
+            CommandOutput::Success => {}
+            CommandOutput::Error(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(1);
+            }
+            CommandOutput::Data(data) => {
+                println!("{}", serde_json::to_string_pretty(&data)?);
+            }
+        }
     }
 
-    if matches!(cli.command, Some(Commands::Version)) {
-        return handle_version();
-    }
-
-    // ------------------------------------------------------------------------
-    //
-    // Commands that require the API client
-    //
-    // ------------------------------------------------------------------------
-    let client_credentials = parse_api_credentials(&cli).await;
-    let api_client = new_client(
-        client_credentials.clone().iris_url,
-        client_credentials.clone().api_key,
-        client_credentials.verbose,
-    )
-    .await
-    .map_err(PoseidonError::Client)?;
-
-    if let Some(Commands::Order { command }) = &cli.command {
-        return handle_order(command, &app.session, &api_client).await;
-    }
-
-    if let Some(Commands::Key { command }) = &cli.command {
-        return handle_key(KeyCommandArgs {
-            command: Some(command.clone().unwrap()),
-            config: config.clone(),
-            client: api_client.clone(),
-            session: app.session.clone(),
-        })
-        .await;
-    }
-
-    if let Some(Commands::Wallet { command }) = &cli.command {
-        return handle_wallet(command, &app.session, &api_client).await;
-    }
-
-    // ------------------------------------------------------------------------
-    //
-    // Commands that require the API client + updated manifest
-    //
-    // ------------------------------------------------------------------------
-    // Initialize manifest through App - this couples session and manifest lifecycle
-    app.init_manifest(
-        client_credentials.iris_url,
-        client_credentials.api_key,
-        true, // enable background refresh
-    )
-    .await
-    .map_err(|e| PoseidonError::Manifest(e.to_string()))?;
-
-    let shared_manifest = app
-        .manifest()
-        .ok_or_else(|| PoseidonError::Manifest("Manifest should be initialized".to_string()))?;
-
-    if matches!(cli.command, Some(Commands::ListTools)) {
-        let manifest = shared_manifest.read().await;
-        let json = to_colored_json_auto(&manifest.tools).map_err(|e| PoseidonError::Serialization(e.to_string()))?;
-        messages::success::json_output(&json);
-        return Ok(());
-    }
-
-    if let Some(Commands::Skill { command: cmd }) = &cli.command {
-        let manifest = shared_manifest.read().await;
-        return handle_skill(cmd, &manifest);
-    }
-
-    // ------------------------------------------------------------------------
-    //
-    // Commands that require the Server
-    //
-    // ------------------------------------------------------------------------
-    if let Some(Commands::Serve { command: _, args }) = &cli.command {
-        let server = EdgeServer::new(api_client, shared_manifest.clone())
-            .await
-            .map_err(|e: Box<dyn std::error::Error>| PoseidonError::Other(e.to_string()))?;
-
-        return serve(args, server).await;
-    }
-
-    // ------------------------------------------------------------------------
-    //
-    // No command matched - display help
-    //
-    // ------------------------------------------------------------------------
-    Cli::command().print_long_help()?;
     Ok(())
+}
+
+/// Parse CLI key command into orchestrator KeyCommand
+fn parse_key_command(cmd: crate::app::cli::KeyCommand) -> Result<KeyCommand, Box<dyn std::error::Error>> {
+    use crate::app::cli::KeyCommand as CliKeyCmd;
+
+    match cmd {
+        CliKeyCmd::Create => Err("Key create not yet implemented".into()),
+        CliKeyCmd::Unlock => {
+            // TODO: Get password from user input
+            Err("Key unlock requires interactive password input".into())
+        }
+        CliKeyCmd::Lock => Ok(KeyCommand::Lock),
+        CliKeyCmd::Update => Err("Key update not yet implemented".into()),
+        CliKeyCmd::Delete => Err("Key delete not yet implemented".into()),
+    }
+}
+
+/// Parse CLI wallet command into orchestrator WalletCommand
+fn parse_wallet_command(cmd: crate::app::cli::WalletCommand) -> Result<WalletCommand, Box<dyn std::error::Error>> {
+    use crate::app::cli::WalletCommand as CliWalletCmd;
+
+    match cmd {
+        CliWalletCmd::List => Ok(WalletCommand::List),
+        CliWalletCmd::Create { chain_type, name } => Ok(WalletCommand::Create {
+            chain: chain_type,
+            name: name.unwrap_or_else(|| "default".to_string()),
+        }),
+        CliWalletCmd::Import {
+            chain_type,
+            name,
+            key_file,
+        } => {
+            let private_key = if let Some(path) = key_file {
+                std::fs::read_to_string(path)?
+            } else {
+                // TODO: Get from interactive input
+                return Err("Private key input required".into());
+            };
+            Ok(WalletCommand::Import {
+                chain: chain_type,
+                name: name.unwrap_or_else(|| "imported".to_string()),
+                private_key: private_key.trim().to_string(),
+            })
+        }
+        CliWalletCmd::Delete { address } => Ok(WalletCommand::Delete { name: address }),
+        CliWalletCmd::Prove { .. } => Err("Prove game not yet implemented".into()),
+    }
 }

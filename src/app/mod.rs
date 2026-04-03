@@ -1,31 +1,42 @@
-//! Application runtime module for the Edge CLI.
+//! App module - main application entry point
 //!
-//! This module provides the core application logic for the Edge Trade CLI,
-//! including command-line parsing, command handling, and the main application runner.
+//! Migrated from app/mod.rs, app/handler.rs, app/client.rs, app/runner.rs
+//! Now uses the orchestrator pattern with domain handles.
 //!
 //! # Module Structure
 //!
+//! - `orchestrator`: App handle that orchestrates all 8 domains
 //! - `cli`: Command-line interface definitions using clap
-//! - `client`: API client credential parsing and management
-//! - `handler`: Command handlers for keys, wallets, skills, and server operations
-//! - `runner`: Main application runner with session and manifest management
+//! - `runner`: Main application runner with session and manifest management (legacy)
 //!
 //! # Usage
 //!
-//! For library consumers, the main entry point is the [`run`] function:
-//!
+//! For the new orchestrator-based API:
 //! ```rust,no_run
-//! use poseidon::app::{run, App};
+//! use poseidon::app::orchestrator::{App, Command, KeyCommand};
 //!
-//! // Run the CLI application
-//! // run(key_create, key_unlock, key_lock, key_update, key_delete).await;
+//! async fn example() {
+//!     let app = App::new(None).await.unwrap();
+//!     let result = app.run_command(Command::Key(KeyCommand::Lock)).await;
+//! }
 //! ```
-//!
-//! For programmatic use, the [`App`] struct provides session and manifest management.
 
 pub mod cli;
+pub mod commands;
+pub mod orchestrator;
+
+pub use orchestrator::{
+    App, AppError, Command, CommandOutput, ConfigCommand, DeliveryType, KeyCommand, SubscribeCommand, TradeActionInput,
+    TradeCommand, WalletCommand,
+};
+
+/// Default Iris WebSocket URL for MCP client connections
+pub const DEFAULT_IRIS_URL: &str = "wss://iris.edge.trade";
+
+// Re-export legacy modules for backward compatibility
 pub mod client;
 pub mod handler;
 pub mod runner;
 
-pub use runner::{App, run};
+// Legacy exports
+pub use runner::run;

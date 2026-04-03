@@ -1,4 +1,4 @@
-use crate::generated::routes::requests::orders_place_spot_order::PlaceSpotOrderResponseItem;
+use crate::domains::client::generated::routes::requests::orders_place_spot_order::PlaceSpotOrderResponseItem;
 
 /// Result type for command operations.
 pub type CommandResult<T> = Result<T, super::error::CommandError>;
@@ -20,12 +20,13 @@ pub fn storage_location(dir: &str) {
 
 pub fn successful_order(response: Vec<PlaceSpotOrderResponseItem>) {
     for item in response {
-        println!("Order placed successfully for wallet: {}", item.wallet,);
+        println!("Order placed successfully for wallet: {}", item.wallet);
         for tx in item.transactions {
-            if let Some(tx) = tx.subtype_0 {
-                println!("  Transaction successful: {}", tx.hash);
-            } else {
-                println!("  Transaction failed: {}", tx.subtype_1.unwrap().error);
+            if let Some(success) = tx.subtype_0 {
+                println!("  Transaction successful: {}", success.hash);
+            }
+            if let Some(failure) = tx.subtype_1 {
+                println!("  Transaction failed: {}", failure.error);
             }
         }
     }
