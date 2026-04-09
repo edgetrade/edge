@@ -36,8 +36,7 @@ tempfile = { workspace = true }
 
 [dependencies]
 # internals
-tyche-enclave = { path = "../tyche-enclave" }
-erato = { path = "../erato" }
+erato = { path = "../erato", default-features = false, features = ["poseidon"] }
 
 # externals
 aes-gcm = { workspace = true }
@@ -59,24 +58,15 @@ html-escape = { workspace = true }
 k256 = { workspace = true }
 keyring = { workspace = true }
 pbkdf2 = { workspace = true }
-rand = { workspace = true }
-redis = { version = "1.1.0", default-features = false, features = [
-  "tokio-rustls-comp",
-] }
-reqwest = { version = "0.13.2", default-features = false, features = [
+redis = { workspace = true, features = ["tokio-rustls-comp"] }
+reqwest = { workspace = true, features = [
   "json",
   "stream",
   "rustls-no-provider",
 ] }
-ring = { workspace = true }
 rpassword = { workspace = true }
 rmcp = { workspace = true }
-rustls = { version = "0.23.37", default-features = false, features = [
-  "ring",
-  "std",
-  "tls12",
-  "logging",
-] }
+rustls = { workspace = true, features = ["ring", "std", "tls12", "logging"] }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
@@ -87,8 +77,6 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true }
 toml = { workspace = true }
-typify = { workspace = true }
-tower = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 zeroize = { workspace = true, features = ["derive"] }

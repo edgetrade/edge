@@ -6,6 +6,9 @@
 
 use std::sync::Arc;
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use erato::services::tyche::attestation::TransportKeyReceiver;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -13,15 +16,21 @@ use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, interval};
 
-use tyche_enclave::envelopes::transport::TransportEnvelope;
-use tyche_enclave::types::chain_type::ChainType;
+use erato::ChainType;
+use erato::messages::envelopes::transport::{
+    RotateUserKeyPayload, TransportEnvelope, TransportEnvelopeKey, WalletUpsert,
+};
 
-use crate::domains::client::errors::ClientError;
-use crate::domains::client::generated::routes::requests::agent_rotate_user_encryption_key;
-use crate::domains::client::manifest::ManifestManager;
-use crate::domains::client::messages::{ClientMessage, ClientRequest, ClientResponse};
-use crate::domains::client::state::ClientState;
-use crate::domains::client::trpc::{Route, RouteType};
+use crate::domains::client::{
+    errors::ClientError,
+    generated::routes::requests::agent_proof_game::ProofGameRequest,
+    manifest::ManifestManager,
+    messages::{ClientMessage, ClientRequest, ClientResponse},
+    state::ClientState,
+    trpc::{Route, RouteType, call},
+};
+use crate::domains::enclave::UsersEncryptionKeys;
+use crate::domains::enclave::Wallet;
 use crate::event_bus::{EventBus, StateEvent};
 
 /// Client actor state owner
@@ -398,8 +407,6 @@ impl ClientActor {
         path: &str,
         input: Value,
     ) -> Result<T, ClientError> {
-        use crate::domains::client::trpc::call;
-
         let client = self
             .state
             .iris_client
@@ -413,8 +420,6 @@ impl ClientActor {
 
     /// Execute a mutation call with the given path and input.
     async fn execute_mutation<T: DeserializeOwned>(&self, path: &str, input: Value) -> Result<T, ClientError> {
-        use crate::domains::client::trpc::call;
-
         let client = self
             .state
             .iris_client
@@ -431,15 +436,9 @@ impl ClientActor {
     /// Moved from routes.rs
     async fn upsert_wallet(
         &self,
-        wallet: crate::domains::enclave::wallet::types::Wallet,
-        user_key: crate::domains::keystore::session::crypto::UsersEncryptionKeys,
+        wallet: Wallet,
+        user_key: UsersEncryptionKeys,
     ) -> Result<ClientResponse, ClientError> {
-        use base64::Engine;
-        use base64::engine::general_purpose::STANDARD;
-        use tyche_enclave::envelopes::transport::{
-            RotateUserKeyPayload, TransportEnvelope, TransportEnvelopeKey, WalletUpsert,
-        };
-
         // Get transport key
         let enclave_keys = self.get_transport_key().await?;
         let key = TransportEnvelopeKey::Unsealing(enclave_keys.deterministic);
@@ -514,12 +513,10 @@ impl ClientActor {
     /// Moved from routes.rs
     async fn rotate_user_encryption_key(
         &self,
-        new_key: crate::domains::keystore::session::crypto::UsersEncryptionKeys,
-        old_key: crate::domains::keystore::session::crypto::UsersEncryptionKeys,
+        new_key: UsersEncryptionKeys,
+        old_key: UsersEncryptionKeys,
     ) -> Result<ClientResponse, ClientError> {
-        use base64::Engine;
-        use base64::engine::general_purpose::STANDARD;
-        use tyche_enclave::envelopes::transport::{RotateUserKeyPayload, TransportEnvelopeKey};
+        use crate::domains::client::generated::routes::requests::agent_rotate_user_encryption_key;
 
         let enclave_keys = self.get_transport_key().await?;
         let key = TransportEnvelopeKey::Unsealing(enclave_keys.deterministic);
@@ -528,7 +525,7 @@ impl ClientActor {
             .seal(&key)
             .map_err(|e| ClientError::Wallet(format!("Failed to seal envelope: {}", e)))?;
 
-        let request = crate::domains::client::generated::routes::requests::agent_rotate_user_encryption_key::RotateUserEncryptionKeyRequest {
+        let request = agent_rotate_user_encryption_key::RotateUserEncryptionKeyRequest {
             envelope: STANDARD.encode(&envelope),
         };
 
@@ -541,10 +538,7 @@ impl ClientActor {
     /// Conduct the proof game.
     ///
     /// Moved from routes.rs
-    async fn proof_game(
-        &self,
-        request: crate::domains::client::generated::routes::requests::agent_proof_game::ProofGameRequest,
-    ) -> Result<ClientResponse, ClientError> {
+    async fn proof_game(&self, request: ProofGameRequest) -> Result<ClientResponse, ClientError> {
         use crate::domains::client::generated::routes::requests::agent_proof_game;
 
         let response: agent_proof_game::ProofGameResponse = self
@@ -557,7 +551,7 @@ impl ClientActor {
     /// Get transport key (internal helper).
     ///
     /// Moved from transport.rs - kept as internal helper
-    async fn get_transport_key(&self) -> Result<tyche_enclave::shared::attestation::TransportKeyReceiver, ClientError> {
+    async fn get_transport_key(&self) -> Result<TransportKeyReceiver, ClientError> {
         use crate::domains::client::generated::routes::requests::agent_get_transport_key;
 
         // For now, execute the route directly
@@ -565,11 +559,6 @@ impl ClientActor {
         let response: agent_get_transport_key::GetTransportKeyResponse = self
             .execute_route(&agent_get_transport_key::ROUTE, &())
             .await?;
-
-        // Parse the response and return transport keys
-        // This is a simplified implementation
-        use base64::Engine;
-        use base64::engine::general_purpose::STANDARD;
 
         let ephemeral_bytes = STANDARD
             .decode(&response.ephemeral)
@@ -592,14 +581,10 @@ impl ClientActor {
         )
         .map_err(|e| ClientError::Transport(format!("Invalid deterministic key: {}", e)))?;
 
-        Ok(tyche_enclave::shared::attestation::TransportKeyReceiver {
+        Ok(TransportKeyReceiver {
             ephemeral,
             deterministic,
             attestation: STANDARD.decode(&response.attestation).unwrap_or_default(),
         })
     }
 }
-
-// RouteExecutor trait is defined in trpc.rs and implemented for IrisClient there.
-// The actor doesn't directly implement RouteExecutor - instead,
-// the execute_route method provides the same functionality internally

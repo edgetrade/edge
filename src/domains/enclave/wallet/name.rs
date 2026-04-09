@@ -1,4 +1,4 @@
-use tyche_enclave::types::chain_type::ChainType;
+use erato::ChainType;
 
 pub fn ensure_wallet_name(chain: ChainType, name: Option<String>) -> String {
     name.unwrap_or_else(|| {

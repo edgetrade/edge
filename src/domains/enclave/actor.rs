@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use zeroize::Zeroize;
 
+use erato::ChainType;
+
 use crate::domains::enclave::wallet::name;
 use crate::domains::enclave::wallet::types::{Wallet, WalletError};
 use crate::event_bus::{EventBus, StateEvent};
@@ -284,11 +286,6 @@ pub struct WalletMetadata {
     /// Encrypted private key blob (UEK-encrypted).
     pub encrypted_key: Vec<u8>,
 }
-
-/// Chain type for wallets.
-///
-/// Re-exported from tyche_enclave for convenience.
-pub use tyche_enclave::types::chain_type::ChainType;
 
 /// Information about a wallet for listing.
 #[derive(Debug, Clone)]

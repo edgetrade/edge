@@ -5,10 +5,12 @@
 
 use tokio::sync::mpsc;
 
+use erato::ChainType;
+
 use crate::event_bus::EventBus;
 
 use super::actor::EnclaveActor;
-use super::actor::{ChainType, EnclaveState, TradeIntent, WalletInfo, WalletMetadata};
+use super::actor::{EnclaveState, TradeIntent, WalletInfo, WalletMetadata};
 use super::errors::{EnclaveError, EnclaveResult};
 use super::messages::{EnclaveMessage, EnclaveRequest};
 

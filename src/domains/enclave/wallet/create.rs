@@ -4,7 +4,7 @@
 //! chains. Generates cryptographically secure keys and encrypts them
 //! with the user's encryption key.
 
-use tyche_enclave::types::chain_type::ChainType;
+use erato::ChainType;
 
 use crate::domains::enclave::errors::EnclaveResult;
 use crate::domains::enclave::wallet::name;

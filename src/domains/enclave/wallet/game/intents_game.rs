@@ -11,13 +11,14 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use uuid::Uuid;
 
-use erato::models::ChainId;
-use tyche_enclave::envelopes::storage::StorageEnvelope;
-use tyche_enclave::envelopes::storage::WalletKey;
-use tyche_enclave::envelopes::transport::{
-    ExecutionPayload, RotateUserKeyPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey, WalletUpsert,
+use erato::messages::envelopes::{
+    storage::StorageEnvelope,
+    storage::WalletKey,
+    transport::{
+        ExecutionPayload, RotateUserKeyPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey, WalletUpsert,
+    },
 };
-use tyche_enclave::types::chain_type::ChainType;
+use erato::{ChainId, ChainType};
 
 use crate::domains::client::generated::routes::requests::agent_proof_game::{
     ProofGameRequest, ProofGameRequestOrdersItem,
@@ -74,7 +75,7 @@ pub async fn play_game(session: &Session, client: &IrisClient) -> EnclaveResult<
     game_messages::status_sending(&orders);
     let response = proof_game(
         &ProofGameRequest {
-            chain_id: erato::models::ChainId::ETHEREUM.to_string(),
+            chain_id: erato::types::ChainId::ETHEREUM.to_string(),
             wallet_address: wallet.address.clone(),
             unsigned_tx: encode_prefixed(test_value.to_be_bytes()),
             orders: orders.into_iter().take(3).collect(),

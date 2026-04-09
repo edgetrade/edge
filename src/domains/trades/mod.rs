@@ -58,9 +58,21 @@ pub mod prelude {
     };
 }
 
+use std::str::FromStr;
+
+use erato::messages::envelopes::transport::{ExecutionPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey};
+
 use crate::domains::client::IrisClient;
+use crate::domains::client::generated::routes::requests::orders_place_spot_order::{
+    PlaceSpotOrderRequest, PlaceSpotOrderRequestOrder, PlaceSpotOrderRequestOrderAmount,
+    PlaceSpotOrderRequestOrderSide, PlaceSpotOrderRequestOrderTxPreset, PlaceSpotOrderRequestOrderTxPresetMethod,
+};
+use crate::domains::client::get_transport_key;
+use crate::domains::client::place_spot_order;
 use crate::domains::keystore::Session;
 use crate::domains::trades::errors::TradesResult;
+use base64::{Engine, engine::general_purpose::STANDARD};
+use erato::types::ChainId;
 
 /// Place a spot order.
 ///
@@ -88,19 +100,6 @@ pub async fn place_spot(
     session: &Session,
     client: &IrisClient,
 ) -> TradesResult<()> {
-    use crate::domains::client::generated::routes::requests::orders_place_spot_order::{
-        PlaceSpotOrderRequest, PlaceSpotOrderRequestOrder, PlaceSpotOrderRequestOrderAmount,
-        PlaceSpotOrderRequestOrderSide, PlaceSpotOrderRequestOrderTxPreset, PlaceSpotOrderRequestOrderTxPresetMethod,
-    };
-    use crate::domains::client::get_transport_key;
-    use crate::domains::client::place_spot_order;
-    use base64::{Engine, engine::general_purpose::STANDARD};
-    use erato::models::ChainId;
-    use std::str::FromStr;
-    use tyche_enclave::envelopes::transport::{
-        ExecutionPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey,
-    };
-
     // Get transport key for envelope creation
     let enclave_keys = get_transport_key(client)
         .await

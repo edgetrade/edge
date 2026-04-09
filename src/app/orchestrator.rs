@@ -22,6 +22,8 @@ use crate::domains::mcp::{McpHandle, McpRequest, TransportType};
 use crate::domains::trades::{TradesHandle, TradesRequest};
 use crate::event_bus::EventBus;
 
+use erato::ChainType;
+
 /// App handle - orchestrates all domains
 ///
 /// This is the central orchestrator that:
@@ -402,8 +404,6 @@ impl App {
 
     /// Run wallet management command
     async fn run_wallet_command(&self, cmd: WalletCommand) -> Result<CommandOutput, AppError> {
-        use crate::domains::enclave::ChainType;
-
         match cmd {
             WalletCommand::List => {
                 let wallets = self

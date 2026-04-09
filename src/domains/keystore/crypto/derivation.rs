@@ -7,7 +7,8 @@ use ed25519_dalek::SigningKey;
 use hkdf::Hkdf;
 use pbkdf2::pbkdf2_hmac;
 use sha2::Sha256;
-use tyche_enclave::types::constants::{USER_ENCRYPTION_KEY_HKDF_INFO, USER_KEY_WRAPPING_KEY_HKDF_INFO};
+
+use erato::types::cryptography::{USER_ENCRYPTION_KEY_HKDF_INFO, USER_KEY_WRAPPING_KEY_HKDF_INFO};
 
 use crate::domains::keystore::session::crypto::{KEY_SIZE, UsersEncryptionKeys};
 

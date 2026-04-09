@@ -5,9 +5,11 @@
 
 use serde::{Deserialize, Serialize};
 
+use erato::ChainType;
+
 use crate::event_bus::PoseidonRequest;
 
-use super::actor::{ChainType, EnclaveState, TradeIntent, WalletInfo};
+use super::actor::{EnclaveState, TradeIntent, WalletInfo};
 use super::errors::EnclaveError;
 
 /// Messages sent to the enclave actor.

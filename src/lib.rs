@@ -285,7 +285,7 @@ pub mod key {
 /// This module provides programmatic access to wallet operations
 /// like creating, importing, listing, and deleting wallets.
 pub mod wallet_api {
-    use tyche_enclave::types::chain_type::ChainType;
+    use erato::ChainType;
 
     use crate::domains::client::IrisClient;
     use crate::domains::client::list_wallets;

@@ -4,7 +4,7 @@
 //! (hex-encoded secp256k1 keys) and Solana (base58-encoded ed25519 keys).
 //! Supports multiple secure input methods.
 
-use tyche_enclave::types::chain_type::ChainType;
+use erato::ChainType;
 
 use crate::domains::enclave::errors::EnclaveResult;
 use crate::domains::enclave::wallet::name;

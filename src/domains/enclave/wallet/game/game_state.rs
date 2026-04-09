@@ -10,8 +10,9 @@ use std::path::PathBuf;
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
-use tyche_enclave::envelopes::transport::TransportEnvelopeKey;
 use uuid::Uuid;
+
+use erato::messages::envelopes::transport::TransportEnvelopeKey;
 
 use crate::domains::client::IrisClient;
 use crate::domains::client::get_transport_key;

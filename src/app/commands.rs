@@ -6,10 +6,11 @@
 
 use crate::app::cli::{KeyCommand, ServeArgs, Transport, WalletCommand};
 use crate::app::orchestrator::App;
-use crate::domains::enclave::ChainType as EnclaveChainType;
 use crate::domains::mcp::TransportType;
 use crate::domains::trades::actor::{ChainType as TradesChainType, TradeAction};
 use crate::error::PoseidonError;
+
+use erato::ChainType as EnclaveChainType;
 
 /// Result type for commands
 pub type CommandResult<T> = Result<T, PoseidonError>;

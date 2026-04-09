@@ -14,7 +14,7 @@ use chrono::{DateTime, Utc};
 use ed25519_dalek::VerifyingKey;
 use serde::{Deserialize, Serialize};
 
-use tyche_enclave::shared::attestation::TransportKeyReceiver;
+use erato::services::tyche::attestation::TransportKeyReceiver;
 
 use crate::domains::client::generated::routes::requests::agent_get_transport_key;
 use crate::domains::client::trpc::RouteExecutor;

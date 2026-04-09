@@ -9,17 +9,19 @@
 use alloy::hex::encode_prefixed;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use erato::models::ChainId;
+use erato::types::ChainId;
 use hkdf::Hkdf;
 use sha2::Sha256;
 use uuid::Uuid;
 
-use tyche_enclave::envelopes::storage::StorageEnvelope;
-use tyche_enclave::envelopes::storage::WalletKey;
-use tyche_enclave::envelopes::transport::{
-    ExecutionPayload, RotateUserKeyPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey, WalletUpsert,
+use erato::ChainType;
+use erato::messages::envelopes::{
+    storage::StorageEnvelope,
+    storage::WalletKey,
+    transport::{
+        ExecutionPayload, RotateUserKeyPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey, WalletUpsert,
+    },
 };
-use tyche_enclave::types::chain_type::ChainType;
 
 use crate::domains::client::IrisClient;
 use crate::domains::client::generated::routes::requests::agent_proof_game::{
@@ -98,7 +100,7 @@ pub async fn play_game(session: &Session, client: &IrisClient) -> EnclaveResult<
     game_messages::status_sending(&orders);
     let response = proof_game(
         &ProofGameRequest {
-            chain_id: erato::models::ChainId::ETHEREUM.to_string(),
+            chain_id: erato::types::ChainId::ETHEREUM.to_string(),
             wallet_address: wallet.address.clone(),
             unsigned_tx: encode_prefixed("1".to_string().into_bytes()),
             orders,
@@ -198,12 +200,9 @@ fn create_game_order(
 
     // Seal the intent payload
     let payload = ExecutionPayload::new(*key_sent_to_enclave, sealed_intent);
-    let intent_envelope =
-        payload
-            .seal(transport_key)
-            .map_err(|e: tyche_enclave::envelopes::transport::TransportEnvelopeError| {
-                EnclaveError::Wallet(e.to_string())
-            })?;
+    let intent_envelope = payload
+        .seal(transport_key)
+        .map_err(|e| EnclaveError::Wallet(e.to_string()))?;
 
     // Seal the storage envelope for the "upsert"
     let wallet_storage_envelope = WalletUpsert::new(sealed_wallet)

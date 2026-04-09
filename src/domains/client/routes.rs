@@ -8,10 +8,10 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
-use tyche_enclave::envelopes::transport::{
+use erato::ChainType;
+use erato::messages::envelopes::transport::{
     RotateUserKeyPayload, TransportEnvelope, TransportEnvelopeKey, WalletUpsert,
 };
-use tyche_enclave::types::chain_type::ChainType;
 
 use crate::domains::client::generated::routes::requests::agent_proof_game::{
     self, ProofGameRequest, ProofGameResponse,

@@ -1,5 +1,6 @@
 use clap::CommandFactory;
-use tyche_enclave::types::chain_type::ChainType;
+
+use erato::ChainType;
 
 use crate::app::cli::{OrderCommand, Transport};
 use crate::domains::client::manifest::types::McpManifest;

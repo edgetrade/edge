@@ -24,8 +24,8 @@ pub mod messages;
 pub mod wallet;
 
 // Re-export the primary public API types
-pub use actor::{ChainType, EnclaveState, TradeIntent, WalletInfo, WalletMetadata};
 pub use actor::{EnclaveActor, run_enclave_actor};
+pub use actor::{EnclaveState, TradeIntent, WalletInfo, WalletMetadata};
 pub use crypto::{CryptoError, CryptoResult, EnclaveTransportKeys, KEY_SIZE, UsersEncryptionKeys};
 pub use errors::{EnclaveError, EnclaveResult};
 pub use handle::EnclaveHandle;

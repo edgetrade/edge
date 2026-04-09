@@ -7,6 +7,13 @@ pub mod crypto;
 pub mod filestore;
 pub mod keyring;
 
+use ed25519_dalek::SigningKey;
+use hkdf::Hkdf;
+use sha2::Sha256;
+
+use erato::messages::envelopes::storage::derive_storage_key;
+use erato::types::cryptography::USER_ENCRYPTION_KEY_HKDF_INFO;
+
 use crate::domains::config::Config;
 use crate::domains::keystore::session::crypto::UsersEncryptionKeys;
 
@@ -103,13 +110,6 @@ impl Session {
     /// # Returns
     /// `Ok(())` on success, or an error if unlocking fails.
     pub fn unlock_with_password(&self, password: &str) -> Result<(), SessionError> {
-        use crate::domains::keystore::session::crypto::UsersEncryptionKeys;
-        use ed25519_dalek::SigningKey;
-        use hkdf::Hkdf;
-        use sha2::Sha256;
-        use tyche_enclave::envelopes::storage::derive_storage_key;
-        use tyche_enclave::types::constants::USER_ENCRYPTION_KEY_HKDF_INFO;
-
         // Derive 32-byte UEK from password using HKDF-SHA256
         let hkdf = Hkdf::<Sha256>::new(None, password.as_bytes());
         let mut uek_bytes = [0u8; 32];

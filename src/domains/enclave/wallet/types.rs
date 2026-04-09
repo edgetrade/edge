@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use tyche_enclave::types::chain_type::ChainType;
+use erato::ChainType;
 
 /// A wallet holding encrypted private key material.
 ///

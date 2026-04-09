@@ -8,7 +8,8 @@ use ed25519_dalek::{SigningKey as SolanaSigningKey, VerifyingKey as SolanaVerify
 use k256::ecdsa::{SigningKey as EvmSigningKey, VerifyingKey as EvmVerifyingKey};
 use sha3::{Digest as Sha3Digest, Keccak256};
 
-use tyche_enclave::{envelopes::storage::StorageEnvelope, envelopes::storage::WalletKey, types::chain_type::ChainType};
+use erato::ChainType;
+use erato::messages::{envelopes::storage::StorageEnvelope, envelopes::storage::WalletKey};
 
 use crate::domains::client::{IrisClient, upsert_wallet};
 use crate::domains::enclave::crypto::UsersEncryptionKeys;

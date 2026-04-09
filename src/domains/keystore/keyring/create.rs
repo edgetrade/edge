@@ -9,8 +9,8 @@ use ed25519_dalek::SigningKey;
 use hkdf::Hkdf;
 use sha2::Sha256;
 
-use tyche_enclave::envelopes::storage::derive_storage_key;
-use tyche_enclave::types::constants::USER_ENCRYPTION_KEY_HKDF_INFO;
+use erato::messages::envelopes::storage::derive_storage_key;
+use erato::types::cryptography::USER_ENCRYPTION_KEY_HKDF_INFO;
 
 use crate::domains::config::Config;
 use crate::domains::keystore::KeyringSession as Session;

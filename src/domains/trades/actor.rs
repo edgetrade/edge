@@ -9,15 +9,16 @@ use crate::event_bus::EventBus;
 use crate::messages;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use erato::models::ChainId;
+use erato::types::ChainId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
-use tyche_enclave::envelopes::transport::{ExecutionPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey};
 use uuid::Uuid;
+
+use erato::messages::envelopes::transport::{ExecutionPayload, SealedIntent, TransportEnvelope, TransportEnvelopeKey};
 
 /// The trades actor that owns trades state.
 pub struct TradesActor {
