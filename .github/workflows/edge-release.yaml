@@ -104,7 +104,6 @@ jobs:
         if: matrix.build.os == 'ubuntu-latest'
         working-directory: brain
         run: |
-          tree -L 4 target
           if [ -f target/${{ matrix.build.target }}/release/edge ]; then
             rsync --archive --mkpath target/${{ matrix.build.target }}/release/edge dist/edge-${{ steps.tagger.outputs.tag }}-${{ matrix.build.target }}
           elif [ -f target/${{ matrix.build.target }}/release/edge.exe ]; then
@@ -116,7 +115,7 @@ jobs:
         working-directory: brain
         run: |
           mkdir -p dist/edge-${{ steps.tagger.outputs.tag }}-${{ matrix.build.target }}
-          rsync --archive target/${{ matrix.build.target }}/release/edge dist/edge-${{ steps.tagger.outputs.tag }}-${{ matrix.build.target }}/
+          cp target/${{ matrix.build.target }}/release/edge dist/edge-${{ steps.tagger.outputs.tag }}-${{ matrix.build.target }}
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
