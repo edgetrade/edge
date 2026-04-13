@@ -1,17 +1,17 @@
-# @edgedottrade/mcp
+# @edgedottrade/edge
 
 MCP server for Edge Trade - blockchain trading and market intelligence for AI agents.
 
 ## Installation
 
 ```bash
-npm install -g @edgedottrade/mcp
+npm install -g @edgedottrade/edge
 ```
 
 Or use with npx (no installation required):
 
 ```bash
-npx @edgedottrade/mcp --help
+npx @edgedottrade/edge --help
 ```
 
 ## Usage
@@ -25,7 +25,7 @@ Add to your Claude Desktop config:
   "mcpServers": {
     "edge": {
       "command": "npx",
-      "args": ["-y", "@edgedottrade/mcp", "--api-key", "sk-your-key-here"]
+      "args": ["-y", "@edgedottrade/edge", "--api-key", "sk-your-key-here"]
     }
   }
 }
@@ -40,7 +40,7 @@ Add to your Cursor MCP config:
   "mcpServers": {
     "edge": {
       "command": "npx",
-      "args": ["-y", "@edgedottrade/mcp", "--api-key", "sk-your-key-here"]
+      "args": ["-y", "@edgedottrade/edge", "--api-key", "sk-your-key-here"]
     }
   }
 }
