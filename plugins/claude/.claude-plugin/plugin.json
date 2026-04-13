@@ -1,0 +1,12 @@
+{
+  "name": "edge",
+  "version": "0.1.0",
+  "description": "On-chain trading data and order management. Search tokens, inspect pairs, screen for gems, place limit orders, subscribe to price alerts.",
+  "author": { "name": "edgedottrade", "url": "https://docs.edge.trade/agents" },
+  "homepage": "https://docs.edge.trade/agents",
+  "repository": "https://github.com/edgetrade/mcp",
+  "license": "MIT",
+  "keywords": ["crypto", "trading", "defi", "solana", "base", "ethereum"],
+  "skills": ["./skills/edge"],
+  "mcpServers": "./.mcp.json"
+}

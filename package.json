@@ -1,0 +1,39 @@
+{
+  "name": "@edgedottrade/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Edge Trade - blockchain trading and market intelligence for AI agents",
+  "type": "module",
+  "bin": {
+    "edge": "./bin/edge.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edgetrade/mcp.git"
+  },
+  "homepage": "https://docs.edge.trade/agents",
+  "scripts": {
+    "postinstall": "node scripts/download-binary.js"
+  },
+  "keywords": [
+    "mcp",
+    "ai",
+    "agents",
+    "crypto",
+    "trading",
+    "defi",
+    "solana",
+    "base",
+    "ethereum",
+    "blockchain"
+  ],
+  "author": "edgedottrade",
+  "license": "MIT",
+  "files": [
+    "bin",
+    "scripts",
+    "binaries"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
