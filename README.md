@@ -1,6 +1,6 @@
 # @edgedottrade/edge
 
-MCP server for Edge Trade - blockchain trading and market intelligence for AI agents.
+Decentralized server for Edge - blockchain trading and market intelligence for AI agents.
 
 ## Installation
 
