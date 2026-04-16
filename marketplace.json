@@ -1,0 +1,9 @@
+{
+  "plugins": [
+    {
+      "name": "edge",
+      "source": "./plugins/claude",
+      "version": "main"
+    }
+  ]
+}
