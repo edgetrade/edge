@@ -60,7 +60,7 @@ Triggers on price or market cap. Both `order` and `envelope` may be required by 
 }}
 ```
 
-Set either `triggerTokenPriceUsd` or `triggerMarketcapUsd` (or both for a dual trigger). For immediate execution, use `place_spot_order` instead — its `order.triggerTokenPriceUsd` is omitted and the order fills against current market price.
+Set either `triggerTokenPriceUsd` or `triggerMarketcapUsd` (or both for a dual trigger). For immediate execution, use `place_spot_order` instead. Its `order.triggerTokenPriceUsd` is omitted and the order fills against current market price.
 
 ## Placing a spot order
 
@@ -71,7 +71,7 @@ Set either `triggerTokenPriceUsd` or `triggerMarketcapUsd` (or both for a dual t
 }}
 ```
 
-`place_spot_order` requires both `order` and `envelope`. The envelope is an encrypted intent your client constructs to commit to the trade parameters before the server executes — see [Security: How Edge Keeps Your Keys Safe](../../security/how-edge-keeps-your-keys-safe.md) for the model.
+`place_spot_order` requires both `order` and `envelope`. The envelope is an encrypted intent your client constructs to commit to the trade parameters before the server executes. See [Security: How Edge Keeps Your Keys Safe](../../security/how-edge-keeps-your-keys-safe.md) for the model.
 
 ## Required `order` fields
 

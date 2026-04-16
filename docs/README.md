@@ -31,7 +31,7 @@ The npm package downloads the native Rust binary for your platform on first run.
 | `pairs` | pairs | `pair_metrics`, `pair_ohlcv`, `pair_swaps`, `pair_info` | Price data, candlesticks, swap history, pool info |
 | `wallet` | portfolio | `wallet_holdings`, `wallet_summary`, `wallet_swaps`, `wallet_history`, `native_balances` | Holdings, PnL, trade history, balances |
 | `orders` | trade | `place_limit_order`, `place_spot_order`, `list_orders`, `order`, `cancel_order`, `cancel_all_orders` + 10 strategy actions | Place orders, manage strategies (entry/exit DCA, TP/SL) |
-| `agent` | agent | 7 wallet-encryption actions | Encrypted wallet management for the semi-custodial trading flow |
+| `agent` | agent | 7 wallet-encryption actions | Encrypted wallet management for the non-custodial trading flow |
 
 ## How calls work
 

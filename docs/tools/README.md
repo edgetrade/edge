@@ -10,7 +10,7 @@ The Edge MCP server exposes 6 tools, each mapping to a namespace with one or mor
 | [screen](./screen.md) | `screen_tokens` (part of `intelligence`) | Onchain-metric token screening (Solana only) |
 | [portfolio](./portfolio.md) (`wallet`) | `wallet_holdings`, `wallet_summary`, `wallet_swaps`, `wallet_history`, `native_balances` | Wallet holdings and history |
 | [trade](./trade.md) (`orders`) | `place_limit_order`, `place_spot_order`, `list_orders`, `order`, `cancel_order`, `cancel_all_orders`, + 10 strategy actions | Order placement and management |
-| [agent](./agent.md) (`agent`) | 7 wallet-encryption actions for the semi-custodial trading flow | Encrypted wallet creation, registration, signing |
+| [agent](./agent.md) (`agent`) | 7 wallet-encryption actions for the non-custodial trading flow | Encrypted wallet creation, registration, signing |
 | [alerts](./alerts.md) (catalog only) | `edge://alerts` MCP resource | Catalog of subscribable alert types; subscriptions are configured in the Edge webapp |
 
 ## Total

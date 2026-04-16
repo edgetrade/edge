@@ -46,7 +46,7 @@ Create a Telegram bot via `@BotFather` and provide its token plus the chat ID. E
 
 ## Polling alternatives from MCP
 
-If you don't want to run a webhook receiver — or you're prototyping — you can poll from an agent instead:
+If you don't want to run a webhook receiver (or you're prototyping), you can poll from an agent instead:
 
 | Need | Poll this action |
 |---|---|
@@ -56,7 +56,7 @@ If you don't want to run a webhook receiver — or you're prototyping — you ca
 | Order status | `orders.list_orders` (filter by `status` and `taskIds`) |
 | Holdings change | `wallet.wallet_holdings` |
 
-Diff each result against the previous poll and act on what changed. Cadence depends on latency budget and rate limits — 10–30 s is reasonable for active wallets and pairs. See [Errors: Rate limits](errors.md#rate-limiting).
+Diff each result against the previous poll and act on what changed. Cadence depends on latency budget and rate limits. 10–30 s is reasonable for active wallets and pairs. See [Errors: Rate limits](errors.md#rate-limiting).
 
 ## Errors
 

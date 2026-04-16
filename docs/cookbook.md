@@ -222,7 +222,7 @@ Other actions: `list_exit_strategies`, `update_exit_strategy`, `remove_exit_stra
 
 **Goal**: Track a set of wallets and surface every new swap.
 
-The `orders` namespace does not expose alert-registration actions. The supported way to watch a wallet from an agent is to **poll `wallet_swaps`** on a cadence that fits your latency budget. For push delivery, configure alerts in the Edge webapp (Settings > Alerts) and point them at your webhook — see [Webhooks](webhooks.md) for the receiver-side payload shape and signature verification.
+The `orders` namespace does not expose alert-registration actions. The supported way to watch a wallet from an agent is to **poll `wallet_swaps`** on a cadence that fits your latency budget. For push delivery, configure alerts in the Edge webapp (Settings > Alerts) and point them at your webhook. See [Webhooks](webhooks.md) for the receiver-side payload shape and signature verification.
 
 **Steps**:
 
@@ -244,9 +244,9 @@ The `orders` namespace does not expose alert-registration actions. The supported
 }}
 ```
 
-Each swap carries `tokensBought`, `tokensSold`, `priceUsd`, `fromAddress`, `transactionHash`. There is no `side` field — use `tokensBought > "0"` for buys, `tokensSold > "0"` for sells. Amounts are returned as strings; compare as strings or parse to `BigInt` before numeric comparison.
+Each swap carries `tokensBought`, `tokensSold`, `priceUsd`, `fromAddress`, `transactionHash`. There is no `side` field: use `tokensBought > "0"` for buys, `tokensSold > "0"` for sells. Amounts are returned as strings; compare as strings or parse to `BigInt` before numeric comparison.
 
-**Cadence guidance**: poll every 10-30 seconds for active wallets. Bursty wallets benefit from a shorter interval; long-tail wallets from a longer one. If you exceed rate limits, back off — see [Errors: Rate limits](errors.md#rate-limiting).
+**Cadence guidance**: poll every 10-30 seconds for active wallets. Bursty wallets benefit from a shorter interval; long-tail wallets from a longer one. If you exceed rate limits, back off. See [Errors: Rate limits](errors.md#rate-limiting).
 
 For push delivery instead of polling, see [Subscriptions](subscriptions.md) for the supported alert channels (webhook, Redis stream, Telegram) and how they are configured.
 
@@ -274,7 +274,7 @@ This recipe shows the polling option; for the webhook receiver side, see [Webhoo
 }}
 ```
 
-`pair_metrics` returns every interval at the top level — read `response["1h"].priceUsd`, `response["1h"].liquidityUsd`, `response["1h"].volumeUsd`. Persist the previous reading and fire your downstream action when the delta crosses your threshold.
+`pair_metrics` returns every interval at the top level. Read `response["1h"].priceUsd`, `response["1h"].liquidityUsd`, `response["1h"].volumeUsd`. Persist the previous reading and fire your downstream action when the delta crosses your threshold.
 
 **Webhook receiver shape** (when configured via the Edge webapp):
 
@@ -369,7 +369,7 @@ Gotchas:
 
 // 3. Place a spot order on your wallet for immediate execution.
 // place_spot_order requires both `order` and `envelope` (an encrypted intent
-// constructed by your client — see Security: How Edge Keeps Your Keys Safe).
+// constructed by your client. See Security: How Edge Keeps Your Keys Safe).
 {"action": "place_spot_order", "schema": 1, "data": {
   "order": {
     "tokenId": {"tokenChainId": "solana", "tokenContractAddress": "<from step 2>"},

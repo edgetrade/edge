@@ -13,7 +13,7 @@ Tools via `edge` MCP server (6 tools, 39 actions):
 - **pairs**: pair metrics, OHLCV candles, swaps, pair info
 - **wallet**: holdings, swaps, PnL history, summary
 - **orders**: `place_limit_order`, `place_spot_order`, list/cancel orders, entry/exit strategies
-- **agent**: encrypted wallet management for the semi-custodial flow
+- **agent**: encrypted wallet management for the non-custodial flow
 
 ## Patterns
 

@@ -56,9 +56,9 @@ Verify against `edge://alerts` for the current set and per-alert input schemas.
 
 Configure one of three delivery targets per alert in the webapp:
 
-- **Webhook** — POST each event to an HTTPS endpoint with HMAC signature verification. See [Webhooks](../webhooks.md).
-- **Redis stream** — push each event onto a Redis stream your backend consumes. See [Redis stream delivery](../redis-streams.md).
-- **Telegram** — send formatted notifications to a chat or group.
+- **Webhook**: POST each event to an HTTPS endpoint with HMAC signature verification. See [Webhooks](../webhooks.md).
+- **Redis stream**: push each event onto a Redis stream your backend consumes. See [Redis stream delivery](../redis-streams.md).
+- **Telegram**: send formatted notifications to a chat or group.
 
 The delivery side is documented per channel; the receiver-side payload shape and verification code is the same regardless of how the alert was registered.
 
@@ -74,7 +74,7 @@ If you want event-driven behavior **inside an agent** without running a separate
 | Order status | `orders.list_orders` (filter by `status` and `taskIds`) |
 | Holdings change | `wallet.wallet_holdings` |
 
-Diff each result against the previous poll and act on what changed. Cadence depends on latency budget and rate limits — 10–30 s is reasonable for active wallets and pairs. See [Errors: Rate limits](../errors.md#rate-limiting).
+Diff each result against the previous poll and act on what changed. Cadence depends on latency budget and rate limits. 10–30 s is reasonable for active wallets and pairs. See [Errors: Rate limits](../errors.md#rate-limiting).
 
 ## Related
 

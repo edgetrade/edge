@@ -40,7 +40,7 @@ Once connected, Claude has access to 6 tools with 39 actions:
 | **pairs** | Pair-scoped analytics: metrics, candles, swaps |
 | **portfolio** | Wallet holdings, PnL, trade history, native balances |
 | **trade** | Limit and spot orders, entry/exit strategies |
-| **agent** | Encrypted wallet management for the semi-custodial flow |
+| **agent** | Encrypted wallet management for the non-custodial flow |
 
 ## Example prompts
 

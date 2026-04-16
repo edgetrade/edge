@@ -62,7 +62,7 @@ Using an environment variable (recommended, avoids hardcoding the key):
 
 ### HTTP Bearer token (MCP Streamable HTTP)
 
-If you need HTTP transport instead of stdio (e.g., connecting from a service mesh), use MCP Streamable HTTP with the Bearer token. The Edge backend is Cloudflare-protected and rejects arbitrary HTTP clients, so use a compliant MCP client library — hand-rolled `curl` will fail. See [REST / HTTP access](rest-api.md) for the full story.
+If you need HTTP transport instead of stdio (e.g., connecting from a service mesh), use MCP Streamable HTTP with the Bearer token. The Edge backend is Cloudflare-protected and rejects arbitrary HTTP clients, so use a compliant MCP client library. Hand-rolled `curl` will fail. See [REST / HTTP access](rest-api.md) for the full story.
 
 ```
 Authorization: Bearer sk-your-key-here
