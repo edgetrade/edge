@@ -20,7 +20,8 @@ jobs:
       - name: Find Tag
         id: finder
         run: |
-          echo "tag=$(git describe --abbrev=0 --tags)" >> "$GITHUB_OUTPUT"
+          git tag --sort=-v:refname | head -n 1
+          echo "tag=$(git tag --sort=-v:refname | head -n 1)" >> "$GITHUB_OUTPUT"
 
     outputs:
       tag: ${{ steps.finder.outputs.tag }}
